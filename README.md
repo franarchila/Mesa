@@ -3,7 +3,7 @@
 
 **Mesa** listens to everyone in a room, auto-detects their language, translates everything into your chosen language, and displays it in large, high-contrast text — so deaf, hard-of-hearing, and non-English-speaking family members can follow along in real time.
 
-Built in one morning for a 97-year-old deaf grandmother. Works for anyone.
+Built in one morning for my 97-year-old deaf, native spanish speaking, grandmother, after her hearing aid broke in half! Works for anyone.
 
 👉 **[Try it live →](https://franarchila.github.io/Mesa)**
 
