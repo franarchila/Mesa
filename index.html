@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Mesa — Live Captions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Source+Sans+3:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --text: #f5f0eb;
+    --text-dim: #888;
+    --accent: #e8845a;
+    --accent2: #7eb8c9;
+    --green: #6dbf9e;
+    --font-size: 28px;
+
+    /* Speaker colors — cycling palette */
+    --s1: #e8845a;
+    --s2: #7eb8c9;
+    --s3: #b8e08a;
+    --s4: #c9a0e8;
+    --s5: #e8d07e;
+    --s6: #e87e9a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Sans 3', sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* ═══════════════════════════════
+     SETUP SCREEN
+  ═══════════════════════════════ */
+  #setup {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 40px 24px;
+    overflow-y: auto;
+  }
+
+  .app-title {
+    font-family: 'Lora', serif;
+    font-size: 52px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -1px;
+  }
+  .app-subtitle {
+    font-size: 20px;
+    color: var(--text-dim);
+    text-align: center;
+    max-width: 420px;
+    line-height: 1.5;
+  }
+
+  .setup-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .field-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  select {
+    width: 100%;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-size: 20px;
+    font-family: 'Source Sans 3', sans-serif;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    cursor: pointer;
+  }
+  select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+  .speaker-count-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .speaker-count-btn {
+    flex: 1;
+    min-width: 60px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 8px;
+    font-size: 18px;
+    font-family: 'Source Sans 3', sans-serif;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .speaker-count-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .start-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    padding: 22px;
+    font-size: 24px;
+    font-family: 'Lora', serif;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .start-btn:active { opacity: 0.85; transform: scale(0.99); }
+
+  /* ═══════════════════════════════
+     CAPTION SCREEN
+  ═══════════════════════════════ */
+  #captionScreen {
+    display: none;
+    flex-direction: column;
+    height: 100dvh;
+    position: relative;
+  }
+
+  /* ── TOP BAR ── */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 12px;
+    flex-wrap: wrap;
+    transition: all 0.4s ease;
+  }
+
+  /* Abuela Mode hides top bar */
+  body.abuela-mode .top-bar { display: none; }
+  body.abuela-mode #captions { padding: 32px 40px 60px; }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 8px 16px;
+    font-size: 15px;
+    color: var(--text-dim);
+  }
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.3s;
+    flex-shrink: 0;
+  }
+  .status-dot.listening  { background: var(--green); animation: pulse 1.5s infinite; }
+  .status-dot.translating { background: var(--accent2); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .ctrl-btn {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+    min-width: 44px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .ctrl-btn:active { background: var(--border); }
+  .ctrl-btn.stop    { color: var(--accent); border-color: var(--accent); }
+  .ctrl-btn.abuela  { color: var(--accent2); border-color: var(--accent2); font-size: 15px; padding: 10px 16px; }
+  .ctrl-btn.abuela.active { background: var(--accent2); color: #000; }
+
+  .font-size-display {
+    font-size: 14px;
+    color: var(--text-dim);
+    min-width: 32px;
+    text-align: center;
+  }
+
+  .mic-select-mini {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-family: 'Source Sans 3', sans-serif;
+    appearance: none;
+    cursor: pointer;
+    max-width: 160px;
+  }
+
+  .lang-badge {
+    font-size: 14px;
+    color: var(--accent2);
+    font-weight: 600;
+  }
+
+  /* ── CAPTION AREA ── */
+  #captions {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px 40px;
+    scroll-behavior: smooth;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  #captions::-webkit-scrollbar { width: 4px; }
+  #captions::-webkit-scrollbar-track { background: transparent; }
+  #captions::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── CAPTION BLOCKS ── */
+  .caption-block {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    animation: fadeUp 0.25s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .caption-meta {
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  /* In Abuela Mode, hide meta row */
+  body.abuela-mode .caption-meta { display: none; }
+  body.abuela-mode .caption-original { display: none; }
+
+  .speaker-label {
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    padding: 2px 10px;
+    border-radius: 6px;
+    color: #000;
+  }
+
+  .caption-lang-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .caption-original {
+    color: var(--text-dim);
+    font-size: 15px;
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  .caption-translated {
+    color: var(--text);
+    font-family: 'Lora', serif;
+    font-size: var(--font-size);
+    line-height: 1.55;
+    font-weight: 400;
+  }
+
+  .caption-translated.interim {
+    color: #aaa;
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+  }
+
+  /* Speaker left border color */
+  .caption-block[data-speaker="1"] .caption-translated { border-left: 4px solid var(--s1); padding-left: 14px; }
+  .caption-block[data-speaker="2"] .caption-translated { border-left: 4px solid var(--s2); padding-left: 14px; }
+  .caption-block[data-speaker="3"] .caption-translated { border-left: 4px solid var(--s3); padding-left: 14px; }
+  .caption-block[data-speaker="4"] .caption-translated { border-left: 4px solid var(--s4); padding-left: 14px; }
+  .caption-block[data-speaker="5"] .caption-translated { border-left: 4px solid var(--s5); padding-left: 14px; }
+  .caption-block[data-speaker="6"] .caption-translated { border-left: 4px solid var(--s6); padding-left: 14px; }
+  /* Interim overrides color but keeps border */
+  .caption-block .caption-translated.interim { border-left-color: #555; }
+
+  /* ── LISTENING INDICATOR ── */
+  #listeningIndicator {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .dots span {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    margin: 0 2px;
+    animation: dotBounce 1.4s infinite;
+  }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotBounce {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40%            { opacity: 1;   transform: scale(1); }
+  }
+
+  /* ── ABUELA MODE ESCAPE BUTTON ── */
+  #abuelaExit {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: rgba(30,30,30,0.85);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 100px;
+    padding: 12px 20px;
+    font-size: 15px;
+    font-family: 'Source Sans 3', sans-serif;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    transition: opacity 0.3s;
+  }
+  body.abuela-mode #abuelaExit { display: block; }
+
+  /* ── SPEAKER LEGEND ── */
+  #speakerLegend {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  body.abuela-mode #speakerLegend { display: none; }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .legend-item:hover { border-color: var(--border); }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .legend-name {
+    font-size: 14px;
+  }
+
+  /* ── HTTPS NOTICE ── */
+  .notice {
+    background: #1a1200;
+    border: 1px solid #3d2e00;
+    color: #c8a040;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 15px;
+    line-height: 1.5;
+    display: none;
+  }
+  .notice.show { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     SETUP SCREEN
+══════════════════════════════════════ -->
+<div id="setup">
+  <div style="text-align:center">
+    <div class="app-title">Mesa</div>
+    <div class="app-subtitle">Live captions for your dinner table — translated in real time</div>
+  </div>
+
+  <div class="setup-card">
+
+    <div>
+      <div class="field-label">Show captions in</div>
+      <select id="targetLang">
+        <option value="es">🇪🇸 Spanish</option>
+        <option value="en">🇺🇸 English</option>
+        <option value="fr">🇫🇷 French</option>
+        <option value="pt">🇧🇷 Portuguese</option>
+        <option value="it">🇮🇹 Italian</option>
+        <option value="de">🇩🇪 German</option>
+        <option value="zh">🇨🇳 Chinese (Simplified)</option>
+        <option value="ja">🇯🇵 Japanese</option>
+        <option value="ko">🇰🇷 Korean</option>
+        <option value="ar">🇸🇦 Arabic</option>
+        <option value="ru">🇷🇺 Russian</option>
+        <option value="hi">🇮🇳 Hindi</option>
+        <option value="pl">🇵🇱 Polish</option>
+        <option value="nl">🇳🇱 Dutch</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="field-label">Microphone</div>
+      <select id="micSelect">
+        <option value="">Default microphone</option>
+      </select>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:6px;">
+        Bluetooth mics appear here when paired to this device.
+      </div>
+    </div>
+
+    <div>
+      <div class="field-label">How many people at the table?</div>
+      <div class="speaker-count-row" id="speakerCountRow">
+        <button class="speaker-count-btn" onclick="setSpeakerCount(2)">2</button>
+        <button class="speaker-count-btn active" onclick="setSpeakerCount(3)">3</button>
+        <button class="speaker-count-btn" onclick="setSpeakerCount(4)">4</button>
+        <button class="speaker-count-btn" onclick="setSpeakerCount(5)">5</button>
+        <button class="speaker-count-btn" onclick="setSpeakerCount(6)">6+</button>
+      </div>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:8px;">
+        Each speaker gets a color so your grandmother knows who's talking.
+      </div>
+    </div>
+
+    <div class="notice" id="httpsNotice">
+      ⚠️ Mic access requires <strong>https://</strong> — open via your Netlify URL, not as a local file.
+    </div>
+
+    <button class="start-btn" onclick="startSession()">Start Listening</button>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     CAPTION SCREEN
+══════════════════════════════════════ -->
+<div id="captionScreen">
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="status-pill">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Starting…</span>
+      </div>
+      <span class="lang-badge" id="langBadge"></span>
+    </div>
+
+    <div class="controls">
+      <select class="mic-select-mini" id="micSelectRuntime" onchange="switchMic(this.value)"></select>
+      <button class="ctrl-btn" onclick="decreaseFont()" title="Smaller">A−</button>
+      <span class="font-size-display" id="fontSizeLabel">28</span>
+      <button class="ctrl-btn" onclick="increaseFont()" title="Larger">A+</button>
+      <button class="ctrl-btn" onclick="clearCaptions()" title="Clear">⌫</button>
+      <button class="ctrl-btn abuela" id="abuelaModeBtn" onclick="toggleAbuelaMode()" title="Abuela Mode">👵 Focus</button>
+      <button class="ctrl-btn stop" onclick="stopSession()">Stop</button>
+    </div>
+  </div>
+
+  <!-- Speaker legend -->
+  <div id="speakerLegend"></div>
+
+  <!-- Captions -->
+  <div id="captions">
+    <div id="listeningIndicator">
+      <span>Listening</span>
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
+  <!-- Abuela mode exit button -->
+  <button id="abuelaExit" onclick="toggleAbuelaMode()">Exit Focus Mode</button>
+
+</div>
+
+
+<script>
+// ═══════════════════════════════════════════
+//  CONFIG — no API keys here, safe to commit!
+//  Your key lives on the proxy server only.
+// ═══════════════════════════════════════════
+const PROXY_URL = 'https://mesa-proxy-2q5a.onrender.com';
+
+// ═══════════════════════════════════════════
+//  SPEAKER CONFIG
+// ═══════════════════════════════════════════
+const SPEAKER_COLORS = ['#e8845a','#7eb8c9','#b8e08a','#c9a0e8','#e8d07e','#e87e9a'];
+const SPEAKER_NAMES  = ['Speaker 1','Speaker 2','Speaker 3','Speaker 4','Speaker 5','Speaker 6'];
+
+// Simple heuristic: assign speakers by detecting pauses/silence between utterances
+// Each "session restart" after silence = potentially new speaker cycling
+let speakerCount = 3;
+let currentSpeakerIndex = 0;
+let lastFinalTime = 0;
+const SPEAKER_ROTATE_MS = 2500; // gap before assuming new speaker
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let recognition    = null;
+let targetLang     = 'es';
+let fontSize       = 28;
+let silenceTimer   = null;
+let isListening    = false;
+let micDeviceId    = '';
+let captionCount   = 0;
+let currentInterimBlock = null;
+let abuelaModeOn   = false;
+const SILENCE_MS   = 4000;
+
+const langNames = {
+  es:'Spanish', en:'English', fr:'French', pt:'Portuguese',
+  it:'Italian', de:'German', zh:'Chinese', ja:'Japanese',
+  ko:'Korean',  ar:'Arabic', ru:'Russian', hi:'Hindi',
+  pl:'Polish',  nl:'Dutch'
+};
+
+// ═══════════════════════════════════════════
+//  SPEAKER COUNT SELECTOR
+// ═══════════════════════════════════════════
+function setSpeakerCount(n) {
+  speakerCount = n;
+  document.querySelectorAll('.speaker-count-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.textContent) === n || (btn.textContent === '6+' && n >= 6));
+  });
+}
+
+// ═══════════════════════════════════════════
+//  MIC ENUMERATION
+// ═══════════════════════════════════════════
+async function loadMics() {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const mics = devices.filter(d => d.kind === 'audioinput');
+    ['micSelect','micSelectRuntime'].forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      sel.innerHTML = '';
+      mics.forEach((m, i) => {
+        const opt = document.createElement('option');
+        opt.value = m.deviceId;
+        opt.text  = m.label || `Microphone ${i+1}`;
+        sel.appendChild(opt);
+      });
+    });
+  } catch(e) {
+    console.warn('Mic enum failed', e);
+    document.getElementById('httpsNotice').classList.add('show');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  TRANSLATION
+// ═══════════════════════════════════════════
+const translateCache = new Map();
+
+async function translate(text, sourceLang) {
+  if (!text.trim()) return text;
+  const cacheKey = `${sourceLang}|${targetLang}|${text}`;
+  if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
+  if (sourceLang && sourceLang.startsWith(targetLang)) return text;
+
+  try {
+    let result = text;
+
+    const r = await fetch(`${PROXY_URL}/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, target: targetLang })
+    });
+    const j = await r.json();
+    result = j.translated || text;
+
+    translateCache.set(cacheKey, result);
+    return result;
+  } catch(e) {
+    console.warn('Translation error', e);
+    return text;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  SPEAKER DETECTION (heuristic)
+// ═══════════════════════════════════════════
+function getSpeaker(isFinal) {
+  if (!isFinal) return currentSpeakerIndex;
+  const now = Date.now();
+  const gap = now - lastFinalTime;
+  // If there's been a pause, rotate to next speaker
+  if (lastFinalTime > 0 && gap > SPEAKER_ROTATE_MS) {
+    currentSpeakerIndex = (currentSpeakerIndex + 1) % Math.min(speakerCount, 6);
+  }
+  lastFinalTime = now;
+  return currentSpeakerIndex;
+}
+
+// ═══════════════════════════════════════════
+//  SPEAKER LEGEND
+// ═══════════════════════════════════════════
+function buildLegend() {
+  const legend = document.getElementById('speakerLegend');
+  legend.innerHTML = '';
+  const count = Math.min(speakerCount, 6);
+  for (let i = 0; i < count; i++) {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.dataset.speaker = i;
+    item.innerHTML = `
+      <div class="legend-dot" style="background:${SPEAKER_COLORS[i]}"></div>
+      <span class="legend-name" id="speakerName${i}">${SPEAKER_NAMES[i]}</span>
+    `;
+    // Tap to rename
+    item.addEventListener('click', () => renameSpeaker(i));
+    legend.appendChild(item);
+  }
+}
+
+function renameSpeaker(index) {
+  const current = document.getElementById(`speakerName${index}`).textContent;
+  const newName = prompt(`Rename "${current}" to:`, current);
+  if (newName && newName.trim()) {
+    SPEAKER_NAMES[index] = newName.trim();
+    document.getElementById(`speakerName${index}`).textContent = newName.trim();
+    // Update existing captions
+    document.querySelectorAll(`.caption-block[data-speaker="${index+1}"] .speaker-label`).forEach(el => {
+      el.textContent = newName.trim();
+    });
+  }
+}
+
+// ═══════════════════════════════════════════
+//  CAPTION RENDERING
+// ═══════════════════════════════════════════
+function createCaptionBlock(original, translated, detectedLang, isInterim, speakerIdx) {
+  const block = document.createElement('div');
+  block.className = 'caption-block';
+  block.dataset.id = ++captionCount;
+  block.dataset.speaker = speakerIdx + 1;
+
+  const color = SPEAKER_COLORS[speakerIdx] || SPEAKER_COLORS[0];
+  const name  = SPEAKER_NAMES[speakerIdx]  || `Speaker ${speakerIdx+1}`;
+
+  // Meta row
+  const meta = document.createElement('div');
+  meta.className = 'caption-meta';
+  const now  = new Date();
+  const time = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+  const speakerBadge = `<span class="speaker-label" style="background:${color}">${name}</span>`;
+  const langBadge    = detectedLang && detectedLang !== 'auto'
+    ? `<span class="caption-lang-badge">${detectedLang.toUpperCase()}</span>` : '';
+  meta.innerHTML = `${speakerBadge} <span>${time}</span> ${langBadge}`;
+  block.appendChild(meta);
+
+  // Original (dimmed)
+  if (original && original !== translated) {
+    const orig = document.createElement('div');
+    orig.className = 'caption-original';
+    orig.textContent = original;
+    block.appendChild(orig);
+  }
+
+  // Translated (big)
+  const cap = document.createElement('div');
+  cap.className = 'caption-translated' + (isInterim ? ' interim' : '');
+  cap.style.fontSize = fontSize + 'px';
+  cap.textContent = translated;
+  block.appendChild(cap);
+
+  return block;
+}
+
+function appendCaption(original, translated, detectedLang, isInterim, speakerIdx) {
+  const captions  = document.getElementById('captions');
+  const indicator = document.getElementById('listeningIndicator');
+
+  if (isInterim) {
+    if (currentInterimBlock) {
+      currentInterimBlock.querySelector('.caption-translated').textContent = translated;
+      const origEl = currentInterimBlock.querySelector('.caption-original');
+      if (origEl && original && original !== translated) origEl.textContent = original;
+    } else {
+      currentInterimBlock = createCaptionBlock(original, translated, detectedLang, true, speakerIdx);
+      captions.insertBefore(currentInterimBlock, indicator);
+    }
+  } else {
+    if (currentInterimBlock) {
+      currentInterimBlock.remove();
+      currentInterimBlock = null;
+    }
+    const block = createCaptionBlock(original, translated, detectedLang, false, speakerIdx);
+    captions.insertBefore(block, indicator);
+  }
+
+  indicator.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function clearCaptions() {
+  const captions  = document.getElementById('captions');
+  const indicator = document.getElementById('listeningIndicator');
+  [...captions.children].forEach(c => { if (c !== indicator) c.remove(); });
+  currentInterimBlock = null;
+  currentSpeakerIndex = 0;
+  lastFinalTime = 0;
+}
+
+// ═══════════════════════════════════════════
+//  SPEECH RECOGNITION
+// ═══════════════════════════════════════════
+function buildRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('Speech recognition not supported. Please use Chrome.');
+    return null;
+  }
+
+  const r = new SpeechRecognition();
+  r.continuous      = true;
+  r.interimResults  = true;
+  r.lang            = ''; // auto-detect language
+  r.maxAlternatives = 1;
+
+  r.onstart = () => {
+    isListening = true;
+    setStatus('listening', 'Listening…');
+    resetSilenceTimer();
+  };
+
+  r.onend = () => {
+    if (isListening) setTimeout(() => { try { r.start(); } catch(e){} }, 300);
+  };
+
+  r.onerror = (e) => {
+    if (e.error === 'no-speech') return;
+    if (e.error === 'not-allowed') {
+      setStatus('', 'Mic access denied — check browser settings');
+      stopSession();
+      return;
+    }
+    console.warn('SpeechRecognition error', e.error);
+  };
+
+  r.onresult = async (e) => {
+    resetSilenceTimer();
+    setStatus('listening', 'Listening…');
+
+    let interim = '';
+    let final   = '';
+
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      if (res.isFinal) final   += res[0].transcript;
+      else             interim += res[0].transcript;
+    }
+
+    const detectedLang = detectLangFromTranscript(final || interim);
+
+    if (interim) {
+      const speakerIdx = getSpeaker(false);
+      const translated = await translate(interim, detectedLang);
+      appendCaption(interim, translated, detectedLang, true, speakerIdx);
+    }
+
+    if (final) {
+      setStatus('translating', 'Translating…');
+      const speakerIdx = getSpeaker(true);
+      const translated = await translate(final.trim(), detectedLang);
+      appendCaption(final.trim(), translated, detectedLang, false, speakerIdx);
+      setStatus('listening', 'Listening…');
+    }
+  };
+
+  return r;
+}
+
+function detectLangFromTranscript(text) {
+  if (!text) return null;
+  if (/[\u4e00-\u9fff]/.test(text)) return 'zh';
+  if (/[\u3040-\u30ff]/.test(text)) return 'ja';
+  if (/[\uac00-\ud7af]/.test(text)) return 'ko';
+  if (/[\u0600-\u06ff]/.test(text)) return 'ar';
+  if (/[\u0400-\u04ff]/.test(text)) return 'ru';
+  if (/[\u0900-\u097f]/.test(text)) return 'hi';
+  return 'auto';
+}
+
+// ═══════════════════════════════════════════
+//  SILENCE TIMER
+// ═══════════════════════════════════════════
+function resetSilenceTimer() {
+  clearTimeout(silenceTimer);
+  silenceTimer = setTimeout(() => {
+    if (isListening) setStatus('', 'Listening quietly…');
+  }, SILENCE_MS);
+}
+
+// ═══════════════════════════════════════════
+//  ABUELA MODE
+// ═══════════════════════════════════════════
+function toggleAbuelaMode() {
+  abuelaModeOn = !abuelaModeOn;
+  document.body.classList.toggle('abuela-mode', abuelaModeOn);
+  const btn = document.getElementById('abuelaModeBtn');
+  btn.classList.toggle('active', abuelaModeOn);
+  btn.textContent = abuelaModeOn ? '👵 Exit' : '👵 Focus';
+
+  if (abuelaModeOn) {
+    // Bump font size up for Abuela Mode if not already large
+    if (fontSize < 44) {
+      fontSize = 48;
+      document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+      document.getElementById('fontSizeLabel').textContent = fontSize;
+      document.querySelectorAll('.caption-translated').forEach(el => el.style.fontSize = fontSize + 'px');
+    }
+    // Try fullscreen
+    try { document.documentElement.requestFullscreen(); } catch(e){}
+  } else {
+    try { document.exitFullscreen(); } catch(e){}
+  }
+}
+
+// ═══════════════════════════════════════════
+//  SESSION CONTROL
+// ═══════════════════════════════════════════
+async function startSession() {
+  targetLang  = document.getElementById('targetLang').value;
+  micDeviceId = document.getElementById('micSelect').value;
+
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('captionScreen').style.display = 'flex';
+
+  document.getElementById('langBadge').textContent = '→ ' + (langNames[targetLang] || targetLang);
+
+  // Sync mic dropdown
+  const micSrc = document.getElementById('micSelect');
+  const micDst = document.getElementById('micSelectRuntime');
+  micDst.innerHTML = micSrc.innerHTML;
+  micDst.value = micSrc.value;
+
+  document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+
+  buildLegend();
+
+  recognition = buildRecognition();
+  if (recognition) {
+    try { recognition.start(); }
+    catch(e) { setStatus('', 'Could not start — check mic permissions'); }
+  }
+}
+
+function stopSession() {
+  isListening = false;
+  abuelaModeOn = false;
+  document.body.classList.remove('abuela-mode');
+  clearTimeout(silenceTimer);
+  if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
+  try { document.exitFullscreen(); } catch(e){}
+
+  document.getElementById('captionScreen').style.display = 'none';
+  document.getElementById('setup').style.display = 'flex';
+  clearCaptions();
+}
+
+function switchMic(deviceId) {
+  micDeviceId = deviceId;
+  if (recognition && isListening) {
+    try { recognition.stop(); } catch(e){}
+  }
+}
+
+// ═══════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════
+function setStatus(type, text) {
+  document.getElementById('statusDot').className = 'status-dot' + (type ? ` ${type}` : '');
+  document.getElementById('statusText').textContent = text;
+}
+
+function increaseFont() {
+  fontSize = Math.min(fontSize + 4, 80);
+  applyFontSize();
+}
+
+function decreaseFont() {
+  fontSize = Math.max(fontSize - 4, 16);
+  applyFontSize();
+}
+
+function applyFontSize() {
+  document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+  document.getElementById('fontSizeLabel').textContent = fontSize;
+  document.querySelectorAll('.caption-translated').forEach(el => el.style.fontSize = fontSize + 'px');
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+window.addEventListener('load', () => {
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    document.getElementById('httpsNotice').classList.add('show');
+  }
+  loadMics();
+  setSpeakerCount(3); // default
+});
+</script>
+</body>
+</html>
