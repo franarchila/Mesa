@@ -804,11 +804,27 @@ async function processAudioChunk(blob) {
       return;
     }
 
+    // Fix common ASR errors for family names
+    function fixFamilyNames(text) {
+      return text
+        .replace(/\bmatches\b/gi,    'Meches')
+        .replace(/\bmechis\b/gi,     'Meches')
+        .replace(/\bmeche\b/gi,      'Meches')
+        .replace(/\bwecho\b/gi,      'Wicho')
+        .replace(/\barchilla\b/gi,   'Archila')
+        .replace(/\bkiko\b/gi,       'Quico')
+        .replace(/\breho\b/gi,       'Rejo')
+        .replace(/\bregina\b/gi,     'Rejo')
+        .replace(/\bla sadie\b/gi,   'La Sadie');
+    }
+
     // Each utterance = one speaker's turn. Translate and display each one.
     for (const utt of utterances) {
       const speakerIdx = getSpeakerIdx(utt.speaker);
-      const translated = await translate(utt.text, language || 'auto');
-      appendCaption(utt.text, translated, language, speakerIdx);
+      const fixedText = fixFamilyNames(utt.text);
+      const translated = await translate(fixedText, language || 'auto');
+      const fixedTranslated = fixFamilyNames(translated);
+      appendCaption(fixedText, fixedTranslated, language, speakerIdx);
     }
 
   } catch(e) {
