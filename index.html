@@ -779,52 +779,51 @@ async function startRecording() {
   mediaRecorder.start(CHUNK_MS);
 }
 
+// Fix common ASR errors for family names
+function fixFamilyNames(text) {
+  return text
+    .replace(/\bmatches\b/gi,    'Meches')
+    .replace(/\bmechis\b/gi,     'Meches')
+    .replace(/\bmeche\b/gi,      'Meches')
+    .replace(/\bwecho\b/gi,      'Wicho')
+    .replace(/\barchilla\b/gi,   'Archila')
+    .replace(/\bkiko\b/gi,       'Quico')
+    .replace(/\breho\b/gi,       'Rejo')
+    .replace(/\bregina\b/gi,     'Rejo')
+    .replace(/\bla sadie\b/gi,   'La Sadie');
+}
+
 async function processAudioChunk(blob) {
   if (!isListening) return;
+  if (!blob || blob.size < 1000) return;
+  console.log('Sending chunk:', blob.size, 'bytes', blob.type);
   setStatus('translating', 'Transcribing…');
 
   try {
-    const arrayBuffer = await blob.arrayBuffer();
     const r = await fetch(`${PROXY_URL}/transcribe`, {
       method: 'POST',
       headers: { 'Content-Type': blob.type || 'audio/webm' },
-      body: arrayBuffer
+      body: blob
     });
 
     if (!r.ok) {
-      console.warn('Transcription failed:', r.status);
+      const err = await r.json().catch(() => ({}));
+      console.warn('Transcription failed:', r.status, err);
       setStatus('listening', 'Listening…');
       return;
     }
 
     const { utterances, language } = await r.json();
-
     if (!utterances || utterances.length === 0) {
       setStatus('listening', 'Listening…');
       return;
     }
 
-    // Fix common ASR errors for family names
-    function fixFamilyNames(text) {
-      return text
-        .replace(/\bmatches\b/gi,    'Meches')
-        .replace(/\bmechis\b/gi,     'Meches')
-        .replace(/\bmeche\b/gi,      'Meches')
-        .replace(/\bwecho\b/gi,      'Wicho')
-        .replace(/\barchilla\b/gi,   'Archila')
-        .replace(/\bkiko\b/gi,       'Quico')
-        .replace(/\breho\b/gi,       'Rejo')
-        .replace(/\bregina\b/gi,     'Rejo')
-        .replace(/\bla sadie\b/gi,   'La Sadie');
-    }
-
-    // Each utterance = one speaker's turn. Translate and display each one.
     for (const utt of utterances) {
       const speakerIdx = getSpeakerIdx(utt.speaker);
-      const fixedText = fixFamilyNames(utt.text);
-      const translated = await translate(fixedText, language || 'auto');
-      const fixedTranslated = fixFamilyNames(translated);
-      appendCaption(fixedText, fixedTranslated, language, speakerIdx);
+      const fixed = fixFamilyNames(utt.text);
+      const translated = await translate(fixed, language || 'auto');
+      appendCaption(fixed, translated, language, speakerIdx);
     }
 
   } catch(e) {
