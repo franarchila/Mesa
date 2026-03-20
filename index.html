@@ -173,6 +173,7 @@
     transition: all 0.4s ease;
   }
 
+  /* Abuela Mode hides top bar */
   body.abuela-mode .top-bar { display: none; }
   body.abuela-mode #captions { padding: 32px 40px 60px; }
 
@@ -290,6 +291,7 @@
     align-items: center;
     gap: 8px;
   }
+  /* In Abuela Mode, hide meta row */
   body.abuela-mode .caption-meta { display: none; }
   body.abuela-mode .caption-original { display: none; }
 
@@ -332,12 +334,14 @@
     padding-left: 12px;
   }
 
+  /* Speaker left border color */
   .caption-block[data-speaker="1"] .caption-translated { border-left: 4px solid var(--s1); padding-left: 14px; }
   .caption-block[data-speaker="2"] .caption-translated { border-left: 4px solid var(--s2); padding-left: 14px; }
   .caption-block[data-speaker="3"] .caption-translated { border-left: 4px solid var(--s3); padding-left: 14px; }
   .caption-block[data-speaker="4"] .caption-translated { border-left: 4px solid var(--s4); padding-left: 14px; }
   .caption-block[data-speaker="5"] .caption-translated { border-left: 4px solid var(--s5); padding-left: 14px; }
   .caption-block[data-speaker="6"] .caption-translated { border-left: 4px solid var(--s6); padding-left: 14px; }
+  /* Interim overrides color but keeps border */
   .caption-block .caption-translated.interim { border-left-color: #555; }
 
   /* ── LISTENING INDICATOR ── */
@@ -417,7 +421,9 @@
     border-radius: 50%;
     flex-shrink: 0;
   }
-  .legend-name { font-size: 14px; }
+  .legend-name {
+    font-size: 14px;
+  }
 
   /* ── HTTPS NOTICE ── */
   .notice {
@@ -491,7 +497,7 @@
     </div>
 
     <div class="notice" id="httpsNotice">
-      ⚠️ Mic access requires <strong>https://</strong> — open via your GitHub Pages URL, not as a local file.
+      ⚠️ Mic access requires <strong>https://</strong> — open via your Netlify URL, not as a local file.
     </div>
 
     <button class="start-btn" onclick="startSession()">Start Listening</button>
@@ -504,6 +510,7 @@
 ══════════════════════════════════════ -->
 <div id="captionScreen">
 
+  <!-- Top bar -->
   <div class="top-bar">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <div class="status-pill">
@@ -524,8 +531,10 @@
     </div>
   </div>
 
+  <!-- Speaker legend -->
   <div id="speakerLegend"></div>
 
+  <!-- Captions -->
   <div id="captions">
     <div id="listeningIndicator">
       <span>Listening</span>
@@ -533,6 +542,7 @@
     </div>
   </div>
 
+  <!-- Abuela mode exit button -->
   <button id="abuelaExit" onclick="toggleAbuelaMode()">Exit Focus Mode</button>
 
 </div>
@@ -540,13 +550,10 @@
 
 <script>
 // ═══════════════════════════════════════════
-//  CONFIG
+//  CONFIG — no API keys here, safe to commit!
+//  Your key lives on the proxy server only.
 // ═══════════════════════════════════════════
-const PROXY_URL = 'https://mesa-proxy-production.up.railway.app';
-
-// How long each audio chunk is before sending to AssemblyAI (ms)
-// Shorter = more responsive but more API calls. 8s is a good balance.
-const CHUNK_MS = 8000;
+const PROXY_URL = 'https://mesa-proxy-2q5a.onrender.com';
 
 // ═══════════════════════════════════════════
 //  SPEAKER CONFIG
@@ -554,23 +561,26 @@ const CHUNK_MS = 8000;
 const SPEAKER_COLORS = ['#e8845a','#7eb8c9','#b8e08a','#c9a0e8','#e8d07e','#e87e9a'];
 const SPEAKER_NAMES  = ['Speaker 1','Speaker 2','Speaker 3','Speaker 4','Speaker 5','Speaker 6'];
 
-// Map AssemblyAI's speaker labels (A, B, C...) to our color indices
-const speakerMap = {};
-
+// Simple heuristic: assign speakers by detecting pauses/silence between utterances
+// Each "session restart" after silence = potentially new speaker cycling
 let speakerCount = 3;
+let currentSpeakerIndex = 0;
+let lastFinalTime = 0;
+const SPEAKER_ROTATE_MS = 2500; // gap before assuming new speaker
 
 // ═══════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════
-let mediaRecorder  = null;
-let audioStream    = null;
-let isListening    = false;
-let micDeviceId    = '';
+let recognition    = null;
 let targetLang     = 'es';
 let fontSize       = 28;
+let silenceTimer   = null;
+let isListening    = false;
+let micDeviceId    = '';
 let captionCount   = 0;
+let currentInterimBlock = null;
 let abuelaModeOn   = false;
-let nextSpeakerIdx = 0;  // next color slot to assign to a new speaker
+const SILENCE_MS   = 4000;
 
 const langNames = {
   es:'Spanish', en:'English', fr:'French', pt:'Portuguese',
@@ -626,13 +636,16 @@ async function translate(text, sourceLang) {
   if (sourceLang && sourceLang.startsWith(targetLang)) return text;
 
   try {
+    let result = text;
+
     const r = await fetch(`${PROXY_URL}/translate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, target: targetLang })
     });
     const j = await r.json();
-    const result = j.translated || text;
+    result = j.translated || text;
+
     translateCache.set(cacheKey, result);
     return result;
   } catch(e) {
@@ -642,17 +655,18 @@ async function translate(text, sourceLang) {
 }
 
 // ═══════════════════════════════════════════
-//  SPEAKER MAPPING
-//  AssemblyAI returns speaker labels like "A", "B", "C"
-//  We map these to our color palette consistently
+//  SPEAKER DETECTION (heuristic)
 // ═══════════════════════════════════════════
-function getSpeakerIdx(assemblyLabel) {
-  if (assemblyLabel === null || assemblyLabel === undefined) return 0;
-  if (!(assemblyLabel in speakerMap)) {
-    speakerMap[assemblyLabel] = nextSpeakerIdx % Math.min(speakerCount, 6);
-    nextSpeakerIdx++;
+function getSpeaker(isFinal) {
+  if (!isFinal) return currentSpeakerIndex;
+  const now = Date.now();
+  const gap = now - lastFinalTime;
+  // If there's been a pause, rotate to next speaker
+  if (lastFinalTime > 0 && gap > SPEAKER_ROTATE_MS) {
+    currentSpeakerIndex = (currentSpeakerIndex + 1) % Math.min(speakerCount, 6);
   }
-  return speakerMap[assemblyLabel];
+  lastFinalTime = now;
+  return currentSpeakerIndex;
 }
 
 // ═══════════════════════════════════════════
@@ -670,6 +684,7 @@ function buildLegend() {
       <div class="legend-dot" style="background:${SPEAKER_COLORS[i]}"></div>
       <span class="legend-name" id="speakerName${i}">${SPEAKER_NAMES[i]}</span>
     `;
+    // Tap to rename
     item.addEventListener('click', () => renameSpeaker(i));
     legend.appendChild(item);
   }
@@ -681,6 +696,7 @@ function renameSpeaker(index) {
   if (newName && newName.trim()) {
     SPEAKER_NAMES[index] = newName.trim();
     document.getElementById(`speakerName${index}`).textContent = newName.trim();
+    // Update existing captions
     document.querySelectorAll(`.caption-block[data-speaker="${index+1}"] .speaker-label`).forEach(el => {
       el.textContent = newName.trim();
     });
@@ -690,23 +706,28 @@ function renameSpeaker(index) {
 // ═══════════════════════════════════════════
 //  CAPTION RENDERING
 // ═══════════════════════════════════════════
-function createCaptionBlock(original, translated, detectedLang, speakerIdx) {
+function createCaptionBlock(original, translated, detectedLang, isInterim, speakerIdx) {
   const block = document.createElement('div');
   block.className = 'caption-block';
   block.dataset.id = ++captionCount;
   block.dataset.speaker = speakerIdx + 1;
 
   const color = SPEAKER_COLORS[speakerIdx] || SPEAKER_COLORS[0];
-  const name  = SPEAKER_NAMES[speakerIdx]  || `Speaker ${speakerIdx + 1}`;
+  const name  = SPEAKER_NAMES[speakerIdx]  || `Speaker ${speakerIdx+1}`;
 
+  // Meta row
   const meta = document.createElement('div');
   meta.className = 'caption-meta';
-  const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-  const langBadge = detectedLang && detectedLang !== 'auto'
+  const now  = new Date();
+  const time = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+  const speakerBadge = `<span class="speaker-label" style="background:${color}">${name}</span>`;
+  const langBadge    = detectedLang && detectedLang !== 'auto'
     ? `<span class="caption-lang-badge">${detectedLang.toUpperCase()}</span>` : '';
-  meta.innerHTML = `<span class="speaker-label" style="background:${color}">${name}</span> <span>${time}</span> ${langBadge}`;
+  meta.innerHTML = `${speakerBadge} <span>${time}</span> ${langBadge}`;
   block.appendChild(meta);
 
+  // Original (dimmed)
   if (original && original !== translated) {
     const orig = document.createElement('div');
     orig.className = 'caption-original';
@@ -714,8 +735,9 @@ function createCaptionBlock(original, translated, detectedLang, speakerIdx) {
     block.appendChild(orig);
   }
 
+  // Translated (big)
   const cap = document.createElement('div');
-  cap.className = 'caption-translated';
+  cap.className = 'caption-translated' + (isInterim ? ' interim' : '');
   cap.style.fontSize = fontSize + 'px';
   cap.textContent = translated;
   block.appendChild(cap);
@@ -723,11 +745,28 @@ function createCaptionBlock(original, translated, detectedLang, speakerIdx) {
   return block;
 }
 
-function appendCaption(original, translated, detectedLang, speakerIdx) {
+function appendCaption(original, translated, detectedLang, isInterim, speakerIdx) {
   const captions  = document.getElementById('captions');
   const indicator = document.getElementById('listeningIndicator');
-  const block = createCaptionBlock(original, translated, detectedLang, speakerIdx);
-  captions.insertBefore(block, indicator);
+
+  if (isInterim) {
+    if (currentInterimBlock) {
+      currentInterimBlock.querySelector('.caption-translated').textContent = translated;
+      const origEl = currentInterimBlock.querySelector('.caption-original');
+      if (origEl && original && original !== translated) origEl.textContent = original;
+    } else {
+      currentInterimBlock = createCaptionBlock(original, translated, detectedLang, true, speakerIdx);
+      captions.insertBefore(currentInterimBlock, indicator);
+    }
+  } else {
+    if (currentInterimBlock) {
+      currentInterimBlock.remove();
+      currentInterimBlock = null;
+    }
+    const block = createCaptionBlock(original, translated, detectedLang, false, speakerIdx);
+    captions.insertBefore(block, indicator);
+  }
+
   indicator.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
@@ -735,99 +774,99 @@ function clearCaptions() {
   const captions  = document.getElementById('captions');
   const indicator = document.getElementById('listeningIndicator');
   [...captions.children].forEach(c => { if (c !== indicator) c.remove(); });
-  // Reset speaker mapping so colors re-assign cleanly
-  Object.keys(speakerMap).forEach(k => delete speakerMap[k]);
-  nextSpeakerIdx = 0;
+  currentInterimBlock = null;
+  currentSpeakerIndex = 0;
+  lastFinalTime = 0;
 }
 
 // ═══════════════════════════════════════════
-//  AUDIO RECORDING + ASSEMBLYAI TRANSCRIPTION
-//
-//  How it works:
-//    - MediaRecorder captures mic audio in CHUNK_MS chunks
-//    - Each chunk is sent as a binary blob to our proxy /transcribe
-//    - The proxy uploads to AssemblyAI, requests transcription + diarization
-//    - We get back utterances: [{ speaker: "A", text: "..." }, ...]
-//    - Each utterance maps to a speaker color and gets translated
+//  SPEECH RECOGNITION
 // ═══════════════════════════════════════════
-async function startRecording() {
-  try {
-    const constraints = {
-      audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true
-    };
-    audioStream = await navigator.mediaDevices.getUserMedia(constraints);
-  } catch(e) {
-    setStatus('', 'Mic access denied — check browser settings');
-    return;
+function buildRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('Speech recognition not supported. Please use Chrome.');
+    return null;
   }
 
-  // Pick best supported audio format
-  const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find(
-    t => MediaRecorder.isTypeSupported(t)
-  ) || '';
+  const r = new SpeechRecognition();
+  r.continuous      = true;
+  r.interimResults  = true;
+  r.lang            = ''; // auto-detect language
+  r.maxAlternatives = 1;
 
-  mediaRecorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : {});
-  isListening = true;
-  setStatus('listening', 'Listening…');
-
-  mediaRecorder.ondataavailable = async (e) => {
-    if (!e.data || e.data.size < 1000) return; // skip empty/tiny chunks
-    await processAudioChunk(e.data);
+  r.onstart = () => {
+    isListening = true;
+    setStatus('listening', 'Listening…');
+    resetSilenceTimer();
   };
 
-  // Collect a chunk every CHUNK_MS milliseconds
-  mediaRecorder.start(CHUNK_MS);
-}
+  r.onend = () => {
+    if (isListening) setTimeout(() => { try { r.start(); } catch(e){} }, 300);
+  };
 
-async function processAudioChunk(blob) {
-  if (!isListening) return;
-  setStatus('translating', 'Transcribing…');
-
-  try {
-    const arrayBuffer = await blob.arrayBuffer();
-    const r = await fetch(`${PROXY_URL}/transcribe`, {
-      method: 'POST',
-      headers: { 'Content-Type': blob.type || 'audio/webm' },
-      body: arrayBuffer
-    });
-
-    if (!r.ok) {
-      console.warn('Transcription failed:', r.status);
-      setStatus('listening', 'Listening…');
+  r.onerror = (e) => {
+    if (e.error === 'no-speech') return;
+    if (e.error === 'not-allowed') {
+      setStatus('', 'Mic access denied — check browser settings');
+      stopSession();
       return;
     }
+    console.warn('SpeechRecognition error', e.error);
+  };
 
-    const { utterances, language } = await r.json();
+  r.onresult = async (e) => {
+    resetSilenceTimer();
+    setStatus('listening', 'Listening…');
 
-    if (!utterances || utterances.length === 0) {
+    let interim = '';
+    let final   = '';
+
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      if (res.isFinal) final   += res[0].transcript;
+      else             interim += res[0].transcript;
+    }
+
+    const detectedLang = detectLangFromTranscript(final || interim);
+
+    if (interim) {
+      const speakerIdx = getSpeaker(false);
+      const translated = await translate(interim, detectedLang);
+      appendCaption(interim, translated, detectedLang, true, speakerIdx);
+    }
+
+    if (final) {
+      setStatus('translating', 'Translating…');
+      const speakerIdx = getSpeaker(true);
+      const translated = await translate(final.trim(), detectedLang);
+      appendCaption(final.trim(), translated, detectedLang, false, speakerIdx);
       setStatus('listening', 'Listening…');
-      return;
     }
+  };
 
-    // Each utterance = one speaker's turn. Translate and display each one.
-    for (const utt of utterances) {
-      const speakerIdx = getSpeakerIdx(utt.speaker);
-      const translated = await translate(utt.text, language || 'auto');
-      appendCaption(utt.text, translated, language, speakerIdx);
-    }
-
-  } catch(e) {
-    console.warn('Chunk processing error', e);
-  }
-
-  if (isListening) setStatus('listening', 'Listening…');
+  return r;
 }
 
-function stopRecording() {
-  isListening = false;
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-  }
-  if (audioStream) {
-    audioStream.getTracks().forEach(t => t.stop());
-  }
-  mediaRecorder = null;
-  audioStream = null;
+function detectLangFromTranscript(text) {
+  if (!text) return null;
+  if (/[\u4e00-\u9fff]/.test(text)) return 'zh';
+  if (/[\u3040-\u30ff]/.test(text)) return 'ja';
+  if (/[\uac00-\ud7af]/.test(text)) return 'ko';
+  if (/[\u0600-\u06ff]/.test(text)) return 'ar';
+  if (/[\u0400-\u04ff]/.test(text)) return 'ru';
+  if (/[\u0900-\u097f]/.test(text)) return 'hi';
+  return 'auto';
+}
+
+// ═══════════════════════════════════════════
+//  SILENCE TIMER
+// ═══════════════════════════════════════════
+function resetSilenceTimer() {
+  clearTimeout(silenceTimer);
+  silenceTimer = setTimeout(() => {
+    if (isListening) setStatus('', 'Listening quietly…');
+  }, SILENCE_MS);
 }
 
 // ═══════════════════════════════════════════
@@ -841,10 +880,14 @@ function toggleAbuelaMode() {
   btn.textContent = abuelaModeOn ? '👵 Exit' : '👵 Focus';
 
   if (abuelaModeOn) {
+    // Bump font size up for Abuela Mode if not already large
     if (fontSize < 44) {
       fontSize = 48;
-      applyFontSize();
+      document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+      document.getElementById('fontSizeLabel').textContent = fontSize;
+      document.querySelectorAll('.caption-translated').forEach(el => el.style.fontSize = fontSize + 'px');
     }
+    // Try fullscreen
     try { document.documentElement.requestFullscreen(); } catch(e){}
   } else {
     try { document.exitFullscreen(); } catch(e){}
@@ -860,35 +903,43 @@ async function startSession() {
 
   document.getElementById('setup').style.display = 'none';
   document.getElementById('captionScreen').style.display = 'flex';
+
   document.getElementById('langBadge').textContent = '→ ' + (langNames[targetLang] || targetLang);
 
+  // Sync mic dropdown
   const micSrc = document.getElementById('micSelect');
   const micDst = document.getElementById('micSelectRuntime');
   micDst.innerHTML = micSrc.innerHTML;
   micDst.value = micSrc.value;
 
   document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+
   buildLegend();
-  await startRecording();
+
+  recognition = buildRecognition();
+  if (recognition) {
+    try { recognition.start(); }
+    catch(e) { setStatus('', 'Could not start — check mic permissions'); }
+  }
 }
 
 function stopSession() {
-  stopRecording();
+  isListening = false;
   abuelaModeOn = false;
   document.body.classList.remove('abuela-mode');
+  clearTimeout(silenceTimer);
+  if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
   try { document.exitFullscreen(); } catch(e){}
 
   document.getElementById('captionScreen').style.display = 'none';
   document.getElementById('setup').style.display = 'flex';
   clearCaptions();
-  setStatus('', '');
 }
 
 function switchMic(deviceId) {
   micDeviceId = deviceId;
-  if (isListening) {
-    stopRecording();
-    startRecording();
+  if (recognition && isListening) {
+    try { recognition.stop(); } catch(e){}
   }
 }
 
@@ -924,7 +975,7 @@ window.addEventListener('load', () => {
     document.getElementById('httpsNotice').classList.add('show');
   }
   loadMics();
-  setSpeakerCount(3);
+  setSpeakerCount(3); // default
 });
 </script>
 </body>
