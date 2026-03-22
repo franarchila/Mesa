@@ -545,8 +545,8 @@
 const PROXY_URL = 'https://mesa-proxy-production.up.railway.app';
 
 // How long each audio chunk is before sending to AssemblyAI (ms)
-// Shorter = more responsive but more API calls. 8s is a good balance.
-const CHUNK_MS = 8000;
+// Shorter = more responsive but more API calls. 12s gives better continuous transcription.
+const CHUNK_MS = 12000;
 
 // ═══════════════════════════════════════════
 //  SPEAKER CONFIG
@@ -564,6 +564,8 @@ let speakerCount = 3;
 // ═══════════════════════════════════════════
 let mediaRecorder  = null;
 let audioStream    = null;
+let audioChunks    = [];
+let chunkInterval  = null;
 let isListening    = false;
 let micDeviceId    = '';
 let targetLang     = 'es';
@@ -761,22 +763,52 @@ async function startRecording() {
     return;
   }
 
+  isListening = true;
+  setStatus('listening', 'Listening…');
+
+  // Start the first recorder
+  createAndStartRecorder();
+
+  // Every CHUNK_MS, stop the current recorder (which triggers onstop to send the blob)
+  chunkInterval = setInterval(() => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
+  }, CHUNK_MS);
+}
+
+function createAndStartRecorder() {
+  if (!audioStream || !isListening) return;
+
   // Pick best supported audio format
   const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find(
     t => MediaRecorder.isTypeSupported(t)
   ) || '';
 
+  audioChunks = [];
   mediaRecorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : {});
-  isListening = true;
-  setStatus('listening', 'Listening…');
 
-  mediaRecorder.ondataavailable = async (e) => {
-    if (!e.data || e.data.size < 1000) return; // skip empty/tiny chunks
-    await processAudioChunk(e.data);
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) {
+      audioChunks.push(e.data);
+    }
   };
 
-  // Collect a chunk every CHUNK_MS milliseconds
-  mediaRecorder.start(CHUNK_MS);
+  mediaRecorder.onstop = async () => {
+    // Combine all chunks into one complete blob with proper webm header
+    if (audioChunks.length > 0) {
+      const completeBlob = new Blob(audioChunks, { type: audioChunks[0].type || 'audio/webm' });
+      if (completeBlob.size >= 1000) {
+        await processAudioChunk(completeBlob);
+      }
+    }
+    // Start a new recorder for the next chunk (if still listening)
+    if (isListening) {
+      createAndStartRecorder();
+    }
+  };
+
+  mediaRecorder.start();
 }
 
 // Fix common ASR errors for family names
@@ -835,6 +867,10 @@ async function processAudioChunk(blob) {
 
 function stopRecording() {
   isListening = false;
+  if (chunkInterval) {
+    clearInterval(chunkInterval);
+    chunkInterval = null;
+  }
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
   }
@@ -843,6 +879,7 @@ function stopRecording() {
   }
   mediaRecorder = null;
   audioStream = null;
+  audioChunks = [];
 }
 
 // ═══════════════════════════════════════════
