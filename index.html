@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Mesa — Live Captions</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Source+Sans+3:wght@300;400;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Source+Sans+3:wght@300;400;600;700&display=swap');
 
   :root {
     --bg: #0d0d0d;
@@ -17,9 +19,10 @@
     --accent: #e8845a;
     --accent2: #7eb8c9;
     --green: #6dbf9e;
-    --font-size: 28px;
+    --red: #e85a5a;
+    --font-size: 32px;
 
-    /* Speaker colors — cycling palette */
+    /* Speaker colors */
     --s1: #e8845a;
     --s2: #7eb8c9;
     --s3: #b8e08a;
@@ -39,6 +42,7 @@
     flex-direction: column;
     overflow: hidden;
     -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* ═══════════════════════════════
@@ -49,24 +53,24 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 32px;
-    padding: 40px 24px;
+    gap: 28px;
+    padding: 32px 20px 40px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .app-title {
     font-family: 'Lora', serif;
-    font-size: 52px;
+    font-size: 56px;
     font-weight: 700;
     color: var(--text);
     letter-spacing: -1px;
   }
   .app-subtitle {
-    font-size: 20px;
+    font-size: 22px;
     color: var(--text-dim);
     text-align: center;
-    max-width: 420px;
+    max-width: 440px;
     line-height: 1.5;
   }
 
@@ -74,24 +78,31 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 20px;
-    padding: 32px;
+    padding: 28px;
     width: 100%;
-    max-width: 480px;
+    max-width: 520px;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 22px;
   }
 
   .field-label {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-dim);
     margin-bottom: 8px;
   }
 
-  select {
+  .field-help {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+
+  select, .text-input {
     width: 100%;
     background: var(--surface2);
     color: var(--text);
@@ -101,12 +112,23 @@
     font-size: 20px;
     font-family: 'Source Sans 3', sans-serif;
     appearance: none;
+  }
+  select {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 16px center;
     cursor: pointer;
   }
-  select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  select:focus, .text-input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+  .text-input {
+    font-size: 16px;
+    padding: 14px 16px;
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.5;
+  }
+  .text-input::placeholder { color: #777; }
 
   .speaker-count-row {
     display: flex;
@@ -120,12 +142,13 @@
     color: var(--text-dim);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 12px 8px;
-    font-size: 18px;
+    padding: 14px 8px;
+    font-size: 20px;
     font-family: 'Source Sans 3', sans-serif;
     cursor: pointer;
     text-align: center;
     transition: all 0.15s;
+    min-height: 52px;
   }
   .speaker-count-btn.active {
     background: var(--accent);
@@ -139,15 +162,29 @@
     color: #fff;
     border: none;
     border-radius: 16px;
-    padding: 22px;
-    font-size: 24px;
+    padding: 24px;
+    font-size: 26px;
     font-family: 'Lora', serif;
     font-weight: 700;
     cursor: pointer;
     letter-spacing: 0.02em;
     transition: opacity 0.2s, transform 0.1s;
+    min-height: 72px;
   }
   .start-btn:active { opacity: 0.85; transform: scale(0.99); }
+  .start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .notice {
+    background: #1a1200;
+    border: 1px solid #3d2e00;
+    color: #c8a040;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 15px;
+    line-height: 1.5;
+    display: none;
+  }
+  .notice.show { display: block; }
 
   /* ═══════════════════════════════
      CAPTION SCREEN
@@ -164,17 +201,21 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 20px;
+    padding: 12px 16px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
     transition: all 0.4s ease;
   }
 
   body.abuela-mode .top-bar { display: none; }
-  body.abuela-mode #captions { padding: 32px 40px 60px; }
+  body.abuela-mode #speakerLegend { display: none; }
+  body.abuela-mode #captions { padding: 32px 36px 80px; }
+  body.abuela-mode .caption-meta { display: none; }
+  body.abuela-mode .caption-original { display: none; }
+  body.abuela-mode .caption-translated { font-size: 56px !important; line-height: 1.4; }
 
   .status-pill {
     display: flex;
@@ -188,8 +229,8 @@
     color: var(--text-dim);
   }
   .status-dot {
-    width: 10px;
-    height: 10px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: var(--text-dim);
     transition: background 0.3s;
@@ -197,6 +238,8 @@
   }
   .status-dot.listening  { background: var(--green); animation: pulse 1.5s infinite; }
   .status-dot.translating { background: var(--accent2); }
+  .status-dot.error { background: var(--red); }
+  .status-dot.connecting { background: var(--accent); animation: pulse 0.8s infinite; }
 
   @keyframes pulse {
     0%, 100% { opacity: 1; }
@@ -206,7 +249,7 @@
   .controls {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
   }
 
@@ -220,19 +263,24 @@
     cursor: pointer;
     transition: background 0.15s;
     font-family: inherit;
-    min-width: 44px;
+    min-width: 48px;
+    min-height: 48px;
     text-align: center;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .ctrl-btn:active { background: var(--border); }
   .ctrl-btn.stop    { color: var(--accent); border-color: var(--accent); }
-  .ctrl-btn.abuela  { color: var(--accent2); border-color: var(--accent2); font-size: 15px; padding: 10px 16px; }
+  .ctrl-btn.abuela  { color: var(--accent2); border-color: var(--accent2); font-size: 15px; padding: 10px 14px; }
   .ctrl-btn.abuela.active { background: var(--accent2); color: #000; }
+  .ctrl-btn.settings { color: var(--text-dim); font-size: 20px; }
 
   .font-size-display {
     font-size: 14px;
     color: var(--text-dim);
-    min-width: 32px;
+    min-width: 28px;
     text-align: center;
   }
 
@@ -241,12 +289,13 @@
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 15px;
+    padding: 10px 12px;
+    font-size: 14px;
     font-family: 'Source Sans 3', sans-serif;
     appearance: none;
     cursor: pointer;
-    max-width: 160px;
+    max-width: 140px;
+    min-height: 48px;
   }
 
   .lang-badge {
@@ -259,11 +308,12 @@
   #captions {
     flex: 1;
     overflow-y: auto;
-    padding: 24px 28px 40px;
+    padding: 20px 24px 40px;
     scroll-behavior: smooth;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
+    -webkit-overflow-scrolling: touch;
   }
   #captions::-webkit-scrollbar { width: 4px; }
   #captions::-webkit-scrollbar-track { background: transparent; }
@@ -273,7 +323,7 @@
   .caption-block {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
     animation: fadeUp 0.25s ease;
   }
   @keyframes fadeUp {
@@ -290,8 +340,6 @@
     align-items: center;
     gap: 8px;
   }
-  body.abuela-mode .caption-meta { display: none; }
-  body.abuela-mode .caption-original { display: none; }
 
   .speaker-label {
     font-weight: 700;
@@ -322,23 +370,32 @@
     color: var(--text);
     font-family: 'Lora', serif;
     font-size: var(--font-size);
-    line-height: 1.55;
+    line-height: 1.5;
     font-weight: 400;
   }
 
   .caption-translated.interim {
-    color: #aaa;
-    border-left: 3px solid var(--accent);
+    color: #777;
+    border-left: 3px solid #444;
     padding-left: 12px;
+    font-style: italic;
   }
 
-  .caption-block[data-speaker="1"] .caption-translated { border-left: 4px solid var(--s1); padding-left: 14px; }
-  .caption-block[data-speaker="2"] .caption-translated { border-left: 4px solid var(--s2); padding-left: 14px; }
-  .caption-block[data-speaker="3"] .caption-translated { border-left: 4px solid var(--s3); padding-left: 14px; }
-  .caption-block[data-speaker="4"] .caption-translated { border-left: 4px solid var(--s4); padding-left: 14px; }
-  .caption-block[data-speaker="5"] .caption-translated { border-left: 4px solid var(--s5); padding-left: 14px; }
-  .caption-block[data-speaker="6"] .caption-translated { border-left: 4px solid var(--s6); padding-left: 14px; }
-  .caption-block .caption-translated.interim { border-left-color: #555; }
+  /* Speaker color borders */
+  .caption-block[data-speaker="1"] .caption-translated:not(.interim) { border-left: 4px solid var(--s1); padding-left: 14px; }
+  .caption-block[data-speaker="2"] .caption-translated:not(.interim) { border-left: 4px solid var(--s2); padding-left: 14px; }
+  .caption-block[data-speaker="3"] .caption-translated:not(.interim) { border-left: 4px solid var(--s3); padding-left: 14px; }
+  .caption-block[data-speaker="4"] .caption-translated:not(.interim) { border-left: 4px solid var(--s4); padding-left: 14px; }
+  .caption-block[data-speaker="5"] .caption-translated:not(.interim) { border-left: 4px solid var(--s5); padding-left: 14px; }
+  .caption-block[data-speaker="6"] .caption-translated:not(.interim) { border-left: 4px solid var(--s6); padding-left: 14px; }
+
+  /* Abuela mode speaker dots */
+  body.abuela-mode .caption-block[data-speaker="1"] .caption-translated { border-left: 6px solid var(--s1); padding-left: 20px; }
+  body.abuela-mode .caption-block[data-speaker="2"] .caption-translated { border-left: 6px solid var(--s2); padding-left: 20px; }
+  body.abuela-mode .caption-block[data-speaker="3"] .caption-translated { border-left: 6px solid var(--s3); padding-left: 20px; }
+  body.abuela-mode .caption-block[data-speaker="4"] .caption-translated { border-left: 6px solid var(--s4); padding-left: 20px; }
+  body.abuela-mode .caption-block[data-speaker="5"] .caption-translated { border-left: 6px solid var(--s5); padding-left: 20px; }
+  body.abuela-mode .caption-block[data-speaker="6"] .caption-translated { border-left: 6px solid var(--s6); padding-left: 20px; }
 
   /* ── LISTENING INDICATOR ── */
   #listeningIndicator {
@@ -351,52 +408,52 @@
     justify-content: center;
     gap: 10px;
   }
+  body.abuela-mode #listeningIndicator { font-size: 28px; }
+
   .dots span {
     display: inline-block;
-    width: 6px; height: 6px;
+    width: 8px; height: 8px;
     border-radius: 50%;
     background: var(--text-dim);
-    margin: 0 2px;
+    margin: 0 3px;
     animation: dotBounce 1.4s infinite;
   }
   .dots span:nth-child(2) { animation-delay: 0.2s; }
   .dots span:nth-child(3) { animation-delay: 0.4s; }
   @keyframes dotBounce {
     0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-    40%            { opacity: 1;   transform: scale(1); }
+    40%            { opacity: 1;   transform: scale(1.1); }
   }
 
-  /* ── ABUELA MODE ESCAPE BUTTON ──   */
+  /* ── ABUELA EXIT BUTTON ── */
   #abuelaExit {
     display: none;
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: rgba(30,30,30,0.85);
+    bottom: 20px;
+    right: 20px;
+    background: rgba(30,30,30,0.9);
     border: 1px solid var(--border);
     color: var(--text-dim);
     border-radius: 100px;
-    padding: 12px 20px;
-    font-size: 15px;
+    padding: 14px 24px;
+    font-size: 16px;
     font-family: 'Source Sans 3', sans-serif;
     cursor: pointer;
     backdrop-filter: blur(8px);
     z-index: 100;
-    transition: opacity 0.3s;
   }
   body.abuela-mode #abuelaExit { display: block; }
 
   /* ── SPEAKER LEGEND ── */
   #speakerLegend {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
-    padding: 10px 20px;
+    padding: 10px 16px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
-  body.abuela-mode #speakerLegend { display: none; }
 
   .legend-item {
     display: flex;
@@ -405,11 +462,12 @@
     font-size: 14px;
     color: var(--text-dim);
     cursor: pointer;
-    padding: 4px 10px;
+    padding: 6px 12px;
     border-radius: 20px;
     border: 1px solid transparent;
     transition: all 0.15s;
     user-select: none;
+    min-height: 36px;
   }
   .legend-item:hover { border-color: var(--border); }
   .legend-dot {
@@ -417,20 +475,103 @@
     border-radius: 50%;
     flex-shrink: 0;
   }
-  .legend-name { font-size: 14px; }
 
-  /* ── HTTPS NOTICE ── */
-  .notice {
-    background: #1a1200;
-    border: 1px solid #3d2e00;
-    color: #c8a040;
-    border-radius: 10px;
-    padding: 14px 18px;
-    font-size: 15px;
-    line-height: 1.5;
-    display: none;
+  /* ── SETTINGS PANEL (slide-out) ── */
+  #settingsPanel {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 360px;
+    max-width: 90vw;
+    height: 100dvh;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.3s ease;
+    overflow-y: auto;
   }
-  .notice.show { display: block; }
+  #settingsPanel.open { right: 0; }
+
+  .settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-title {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: 'Lora', serif;
+  }
+  .settings-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 28px;
+    cursor: pointer;
+    padding: 4px 8px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .settings-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    flex: 1;
+  }
+
+  .settings-save-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 18px;
+    font-family: 'Lora', serif;
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 56px;
+  }
+  .settings-save-btn:active { opacity: 0.85; }
+
+  /* Settings overlay backdrop */
+  #settingsOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 150;
+  }
+  #settingsOverlay.show { display: block; }
+
+  /* ── CONNECTION STATUS BANNER ── */
+  .connection-banner {
+    display: none;
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .connection-banner.show { display: block; }
+  .connection-banner.reconnecting {
+    background: #2d1f00;
+    color: #e8a030;
+    border-bottom: 1px solid #4d3000;
+  }
+  .connection-banner.error {
+    background: #2d0000;
+    color: #e85a5a;
+    border-bottom: 1px solid #4d0000;
+  }
 </style>
 </head>
 <body>
@@ -449,20 +590,20 @@
     <div>
       <div class="field-label">Show captions in</div>
       <select id="targetLang">
-        <option value="es">🇪🇸 Spanish</option>
-        <option value="en">🇺🇸 English</option>
-        <option value="fr">🇫🇷 French</option>
-        <option value="pt">🇧🇷 Portuguese</option>
-        <option value="it">🇮🇹 Italian</option>
-        <option value="de">🇩🇪 German</option>
-        <option value="zh">🇨🇳 Chinese (Simplified)</option>
-        <option value="ja">🇯🇵 Japanese</option>
-        <option value="ko">🇰🇷 Korean</option>
-        <option value="ar">🇸🇦 Arabic</option>
-        <option value="ru">🇷🇺 Russian</option>
-        <option value="hi">🇮🇳 Hindi</option>
-        <option value="pl">🇵🇱 Polish</option>
-        <option value="nl">🇳🇱 Dutch</option>
+        <option value="es">Spanish</option>
+        <option value="en">English</option>
+        <option value="fr">French</option>
+        <option value="pt">Portuguese</option>
+        <option value="it">Italian</option>
+        <option value="de">German</option>
+        <option value="zh">Chinese (Simplified)</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="ar">Arabic</option>
+        <option value="ru">Russian</option>
+        <option value="hi">Hindi</option>
+        <option value="pl">Polish</option>
+        <option value="nl">Dutch</option>
       </select>
     </div>
 
@@ -471,8 +612,8 @@
       <select id="micSelect">
         <option value="">Default microphone</option>
       </select>
-      <div style="font-size:13px;color:var(--text-dim);margin-top:6px;">
-        Bluetooth mics appear here when paired to this device.
+      <div class="field-help">
+        Bluetooth mics and headphones appear here when paired to this device.
       </div>
     </div>
 
@@ -485,16 +626,22 @@
         <button class="speaker-count-btn" onclick="setSpeakerCount(5)">5</button>
         <button class="speaker-count-btn" onclick="setSpeakerCount(6)">6+</button>
       </div>
-      <div style="font-size:13px;color:var(--text-dim);margin-top:8px;">
-        Each speaker gets a color so your grandmother knows who's talking.
+      <div class="field-help">Each speaker gets a color so you know who's talking.</div>
+    </div>
+
+    <div>
+      <div class="field-label">Family Words (optional)</div>
+      <textarea class="text-input" id="familyWordsInput" placeholder="Add names, nicknames, or special words that Mesa should recognize — one per line&#10;&#10;Example:&#10;Meches&#10;Wicho&#10;Abuela&#10;tamales"></textarea>
+      <div class="field-help">
+        These help Mesa correctly hear names and words unique to your family.
       </div>
     </div>
 
     <div class="notice" id="httpsNotice">
-      ⚠️ Mic access requires <strong>https://</strong> — open via your GitHub Pages URL, not as a local file.
+      Mic access requires <strong>https://</strong> — open via your GitHub Pages URL, not as a local file.
     </div>
 
-    <button class="start-btn" onclick="startSession()">Start Listening</button>
+    <button class="start-btn" id="startBtn" onclick="startSession()">Start Listening</button>
   </div>
 </div>
 
@@ -504,22 +651,25 @@
 ══════════════════════════════════════ -->
 <div id="captionScreen">
 
+  <div class="connection-banner" id="connectionBanner"></div>
+
   <div class="top-bar">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <div class="status-pill">
         <div class="status-dot" id="statusDot"></div>
-        <span id="statusText">Starting…</span>
+        <span id="statusText">Connecting…</span>
       </div>
       <span class="lang-badge" id="langBadge"></span>
     </div>
 
     <div class="controls">
       <select class="mic-select-mini" id="micSelectRuntime" onchange="switchMic(this.value)"></select>
-      <button class="ctrl-btn" onclick="decreaseFont()" title="Smaller">A−</button>
-      <span class="font-size-display" id="fontSizeLabel">28</span>
+      <button class="ctrl-btn" onclick="decreaseFont()" title="Smaller">A-</button>
+      <span class="font-size-display" id="fontSizeLabel">32</span>
       <button class="ctrl-btn" onclick="increaseFont()" title="Larger">A+</button>
-      <button class="ctrl-btn" onclick="clearCaptions()" title="Clear">⌫</button>
-      <button class="ctrl-btn abuela" id="abuelaModeBtn" onclick="toggleAbuelaMode()" title="Abuela Mode">👵 Focus</button>
+      <button class="ctrl-btn" onclick="clearCaptions()" title="Clear">&#x232B;</button>
+      <button class="ctrl-btn settings" id="settingsBtn" onclick="openSettings()" title="Settings">&#x2699;</button>
+      <button class="ctrl-btn abuela" id="abuelaModeBtn" onclick="toggleAbuelaMode()" title="Abuela Mode">Focus</button>
       <button class="ctrl-btn stop" onclick="stopSession()">Stop</button>
     </div>
   </div>
@@ -528,13 +678,34 @@
 
   <div id="captions">
     <div id="listeningIndicator">
-      <span>Listening</span>
+      <span id="listeningText">Connecting</span>
       <div class="dots"><span></span><span></span><span></span></div>
     </div>
   </div>
 
   <button id="abuelaExit" onclick="toggleAbuelaMode()">Exit Focus Mode</button>
+</div>
 
+
+<!-- ══════════════════════════════════════
+     SETTINGS PANEL (slide-out)
+══════════════════════════════════════ -->
+<div id="settingsOverlay" onclick="closeSettings()"></div>
+<div id="settingsPanel">
+  <div class="settings-header">
+    <span class="settings-title">Settings</span>
+    <button class="settings-close" onclick="closeSettings()">&#x2715;</button>
+  </div>
+  <div class="settings-body">
+    <div>
+      <div class="field-label">Family Words</div>
+      <textarea class="text-input" id="settingsWordsInput" style="min-height:200px" placeholder="One word or name per line&#10;&#10;Example:&#10;Meches&#10;Wicho"></textarea>
+      <div class="field-help">
+        Adding or changing words will briefly reconnect the transcription to apply them.
+      </div>
+    </div>
+    <button class="settings-save-btn" onclick="saveSettings()">Save &amp; Apply</button>
+  </div>
 </div>
 
 
@@ -544,35 +715,40 @@
 // ═══════════════════════════════════════════
 const PROXY_URL = 'https://mesa-proxy-production.up.railway.app';
 
-// How long each audio chunk is before sending to AssemblyAI (ms)
-// Shorter = more responsive but more API calls. 12s gives better continuous transcription.
-const CHUNK_MS = 12000;
+// Build WebSocket URL from proxy URL
+function getWsUrl() {
+  const url = new URL(PROXY_URL);
+  const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${url.host}/ws`;
+}
 
 // ═══════════════════════════════════════════
 //  SPEAKER CONFIG
 // ═══════════════════════════════════════════
 const SPEAKER_COLORS = ['#e8845a','#7eb8c9','#b8e08a','#c9a0e8','#e8d07e','#e87e9a'];
 const SPEAKER_NAMES  = ['Speaker 1','Speaker 2','Speaker 3','Speaker 4','Speaker 5','Speaker 6'];
-
-// Map AssemblyAI's speaker labels (A, B, C...) to our color indices
 const speakerMap = {};
-
+let nextSpeakerIdx = 0;
 let speakerCount = 3;
 
 // ═══════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════
-let mediaRecorder  = null;
-let audioStream    = null;
-let audioChunks    = [];
-let chunkInterval  = null;
-let isListening    = false;
-let micDeviceId    = '';
-let targetLang     = 'es';
-let fontSize       = 28;
-let captionCount   = 0;
-let abuelaModeOn   = false;
-let nextSpeakerIdx = 0;  // next color slot to assign to a new speaker
+let ws            = null;   // WebSocket to proxy
+let audioContext  = null;
+let audioStream   = null;
+let scriptNode    = null;
+let isListening   = false;
+let micDeviceId   = '';
+let targetLang    = 'es';
+let fontSize      = 32;
+let captionCount  = 0;
+let abuelaModeOn  = false;
+let wordBoost     = [];
+let replacements  = {};
+let currentPartialBlock = null;  // tracks interim caption element
+let wsReconnectAttempts = 0;
+const WS_MAX_RECONNECTS = 5;
 
 const langNames = {
   es:'Spanish', en:'English', fr:'French', pt:'Portuguese',
@@ -581,24 +757,39 @@ const langNames = {
   pl:'Polish',  nl:'Dutch'
 };
 
+// Default family word replacements (post-ASR cleanup)
+const DEFAULT_REPLACEMENTS = {
+  'matches':  'Meches',
+  'mechis':   'Meches',
+  'meche':    'Meches',
+  'wecho':    'Wicho',
+  'archilla': 'Archila',
+  'kiko':     'Quico',
+  'reho':     'Rejo',
+  'regina':   'Rejo'
+};
+
 // ═══════════════════════════════════════════
 //  SPEAKER COUNT SELECTOR
 // ═══════════════════════════════════════════
 function setSpeakerCount(n) {
   speakerCount = n;
   document.querySelectorAll('.speaker-count-btn').forEach(btn => {
-    btn.classList.toggle('active', parseInt(btn.textContent) === n || (btn.textContent === '6+' && n >= 6));
+    const val = btn.textContent.replace('+','');
+    btn.classList.toggle('active', parseInt(val) === n || (btn.textContent === '6+' && n >= 6));
   });
 }
 
 // ═══════════════════════════════════════════
-//  MIC ENUMERATION
+//  MIC ENUMERATION (including Bluetooth)
 // ═══════════════════════════════════════════
 async function loadMics() {
   try {
+    // Request permission first to get labeled devices
     await navigator.mediaDevices.getUserMedia({ audio: true });
     const devices = await navigator.mediaDevices.enumerateDevices();
     const mics = devices.filter(d => d.kind === 'audioinput');
+
     ['micSelect','micSelectRuntime'].forEach(id => {
       const sel = document.getElementById(id);
       if (!sel) return;
@@ -616,45 +807,48 @@ async function loadMics() {
   }
 }
 
-// ═══════════════════════════════════════════
-//  TRANSLATION
-// ═══════════════════════════════════════════
-const translateCache = new Map();
+// Listen for new devices (Bluetooth connect/disconnect)
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+  navigator.mediaDevices.addEventListener('devicechange', loadMics);
+}
 
-async function translate(text, sourceLang) {
-  if (!text.trim()) return text;
-  const cacheKey = `${sourceLang}|${targetLang}|${text}`;
-  if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
-  if (sourceLang && sourceLang.startsWith(targetLang)) return text;
+// ═══════════════════════════════════════════
+//  PARSE FAMILY WORDS → word_boost + replacements
+// ═══════════════════════════════════════════
+function parseFamilyWords(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  // word_boost: all words for AssemblyAI
+  const boost = [...lines];
+  // replacements: start with defaults, can be extended
+  const reps = { ...DEFAULT_REPLACEMENTS };
+  return { boost, reps };
+}
 
-  try {
-    const r = await fetch(`${PROXY_URL}/translate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, target: targetLang })
-    });
-    const j = await r.json();
-    const result = j.translated || text;
-    translateCache.set(cacheKey, result);
-    return result;
-  } catch(e) {
-    console.warn('Translation error', e);
-    return text;
+// ═══════════════════════════════════════════
+//  APPLY LOCAL NAME REPLACEMENTS
+// ═══════════════════════════════════════════
+function fixNames(text) {
+  if (!text) return text;
+  let result = text;
+  for (const [pattern, replacement] of Object.entries(replacements)) {
+    try {
+      const regex = new RegExp('\\b' + pattern + '\\b', 'gi');
+      result = result.replace(regex, replacement);
+    } catch(e) {}
   }
+  return result;
 }
 
 // ═══════════════════════════════════════════
 //  SPEAKER MAPPING
-//  AssemblyAI returns speaker labels like "A", "B", "C"
-//  We map these to our color palette consistently
 // ═══════════════════════════════════════════
-function getSpeakerIdx(assemblyLabel) {
-  if (assemblyLabel === null || assemblyLabel === undefined) return 0;
-  if (!(assemblyLabel in speakerMap)) {
-    speakerMap[assemblyLabel] = nextSpeakerIdx % Math.min(speakerCount, 6);
+function getSpeakerIdx(label) {
+  if (label === null || label === undefined) return 0;
+  if (!(label in speakerMap)) {
+    speakerMap[label] = nextSpeakerIdx % Math.min(speakerCount, 6);
     nextSpeakerIdx++;
   }
-  return speakerMap[assemblyLabel];
+  return speakerMap[label];
 }
 
 // ═══════════════════════════════════════════
@@ -667,7 +861,6 @@ function buildLegend() {
   for (let i = 0; i < count; i++) {
     const item = document.createElement('div');
     item.className = 'legend-item';
-    item.dataset.speaker = i;
     item.innerHTML = `
       <div class="legend-dot" style="background:${SPEAKER_COLORS[i]}"></div>
       <span class="legend-name" id="speakerName${i}">${SPEAKER_NAMES[i]}</span>
@@ -683,6 +876,7 @@ function renameSpeaker(index) {
   if (newName && newName.trim()) {
     SPEAKER_NAMES[index] = newName.trim();
     document.getElementById(`speakerName${index}`).textContent = newName.trim();
+    // Update existing captions
     document.querySelectorAll(`.caption-block[data-speaker="${index+1}"] .speaker-label`).forEach(el => {
       el.textContent = newName.trim();
     });
@@ -692,24 +886,25 @@ function renameSpeaker(index) {
 // ═══════════════════════════════════════════
 //  CAPTION RENDERING
 // ═══════════════════════════════════════════
-function createCaptionBlock(original, translated, detectedLang, speakerIdx) {
+function createCaptionBlock(original, translated, detectedLang, speakerIdx, isInterim) {
   const block = document.createElement('div');
   block.className = 'caption-block';
   block.dataset.id = ++captionCount;
   block.dataset.speaker = speakerIdx + 1;
 
-  const color = SPEAKER_COLORS[speakerIdx] || SPEAKER_COLORS[0];
-  const name  = SPEAKER_NAMES[speakerIdx]  || `Speaker ${speakerIdx + 1}`;
+  if (!isInterim) {
+    const color = SPEAKER_COLORS[speakerIdx] || SPEAKER_COLORS[0];
+    const name  = SPEAKER_NAMES[speakerIdx]  || `Speaker ${speakerIdx + 1}`;
+    const meta  = document.createElement('div');
+    meta.className = 'caption-meta';
+    const time = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    const langBadge = detectedLang && detectedLang !== 'auto'
+      ? `<span class="caption-lang-badge">${detectedLang.toUpperCase()}</span>` : '';
+    meta.innerHTML = `<span class="speaker-label" style="background:${color}">${name}</span> <span>${time}</span> ${langBadge}`;
+    block.appendChild(meta);
+  }
 
-  const meta = document.createElement('div');
-  meta.className = 'caption-meta';
-  const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-  const langBadge = detectedLang && detectedLang !== 'auto'
-    ? `<span class="caption-lang-badge">${detectedLang.toUpperCase()}</span>` : '';
-  meta.innerHTML = `<span class="speaker-label" style="background:${color}">${name}</span> <span>${time}</span> ${langBadge}`;
-  block.appendChild(meta);
-
-  if (original && original !== translated) {
+  if (!isInterim && original && original !== translated) {
     const orig = document.createElement('div');
     orig.className = 'caption-original';
     orig.textContent = original;
@@ -717,19 +912,43 @@ function createCaptionBlock(original, translated, detectedLang, speakerIdx) {
   }
 
   const cap = document.createElement('div');
-  cap.className = 'caption-translated';
+  cap.className = 'caption-translated' + (isInterim ? ' interim' : '');
   cap.style.fontSize = fontSize + 'px';
-  cap.textContent = translated;
+  cap.textContent = translated || original || '';
   block.appendChild(cap);
 
   return block;
 }
 
-function appendCaption(original, translated, detectedLang, speakerIdx) {
+function appendFinalCaption(original, translated, detectedLang, speakerIdx) {
   const captions  = document.getElementById('captions');
   const indicator = document.getElementById('listeningIndicator');
-  const block = createCaptionBlock(original, translated, detectedLang, speakerIdx);
+
+  // Remove any current partial block
+  if (currentPartialBlock) {
+    currentPartialBlock.remove();
+    currentPartialBlock = null;
+  }
+
+  const block = createCaptionBlock(original, translated, detectedLang, speakerIdx, false);
   captions.insertBefore(block, indicator);
+  indicator.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function updatePartialCaption(text, speakerIdx) {
+  const captions  = document.getElementById('captions');
+  const indicator = document.getElementById('listeningIndicator');
+
+  if (currentPartialBlock) {
+    // Update existing partial
+    const cap = currentPartialBlock.querySelector('.caption-translated');
+    if (cap) cap.textContent = text;
+    currentPartialBlock.dataset.speaker = speakerIdx + 1;
+  } else {
+    // Create new partial
+    currentPartialBlock = createCaptionBlock(null, text, null, speakerIdx, true);
+    captions.insertBefore(currentPartialBlock, indicator);
+  }
   indicator.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
@@ -737,149 +956,249 @@ function clearCaptions() {
   const captions  = document.getElementById('captions');
   const indicator = document.getElementById('listeningIndicator');
   [...captions.children].forEach(c => { if (c !== indicator) c.remove(); });
-  // Reset speaker mapping so colors re-assign cleanly
+  currentPartialBlock = null;
   Object.keys(speakerMap).forEach(k => delete speakerMap[k]);
   nextSpeakerIdx = 0;
 }
 
 // ═══════════════════════════════════════════
-//  AUDIO RECORDING + ASSEMBLYAI TRANSCRIPTION
+//  AUDIO CAPTURE + RESAMPLING
 //
-//  How it works:
-//    - MediaRecorder captures mic audio in CHUNK_MS chunks
-//    - Each chunk is sent as a binary blob to our proxy /transcribe
-//    - The proxy uploads to AssemblyAI, requests transcription + diarization
-//    - We get back utterances: [{ speaker: "A", text: "..." }, ...]
-//    - Each utterance maps to a speaker color and gets translated
+//  Pipeline:
+//    getUserMedia → AudioContext → ScriptProcessor
+//    → Resample to 16kHz mono → Int16 PCM → Base64
+//    → WebSocket to proxy
 // ═══════════════════════════════════════════
-async function startRecording() {
+async function startAudioCapture() {
   try {
     const constraints = {
-      audio: micDeviceId ? { deviceId: { exact: micDeviceId } } : true
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
     };
+    if (micDeviceId) {
+      constraints.audio.deviceId = { exact: micDeviceId };
+    }
+
     audioStream = await navigator.mediaDevices.getUserMedia(constraints);
   } catch(e) {
-    setStatus('', 'Mic access denied — check browser settings');
-    return;
+    setStatus('error', 'Mic access denied');
+    return false;
   }
 
-  isListening = true;
-  setStatus('listening', 'Listening…');
+  // Create audio context — try 16kHz but browser may override
+  try {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  } catch(e) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
 
-  // Start the first recorder
-  createAndStartRecorder();
+  const source = audioContext.createMediaStreamSource(audioStream);
+  const nativeSampleRate = audioContext.sampleRate;
 
-  // Every CHUNK_MS, stop the current recorder (which triggers onstop to send the blob)
-  chunkInterval = setInterval(() => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-    }
-  }, CHUNK_MS);
-}
+  // ScriptProcessor: 4096 samples per callback
+  // At 44.1kHz, that's ~93ms per chunk — well within AAI's 50-1000ms range
+  scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
 
-function createAndStartRecorder() {
-  if (!audioStream || !isListening) return;
+  scriptNode.onaudioprocess = (e) => {
+    if (!isListening || !ws || ws.readyState !== WebSocket.OPEN) return;
 
-  // Pick best supported audio format
-  const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find(
-    t => MediaRecorder.isTypeSupported(t)
-  ) || '';
+    const inputData = e.inputBuffer.getChannelData(0);  // Float32Array
 
-  audioChunks = [];
-  mediaRecorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : {});
-
-  mediaRecorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0) {
-      audioChunks.push(e.data);
-    }
-  };
-
-  mediaRecorder.onstop = async () => {
-    // Combine all chunks into one complete blob with proper webm header
-    if (audioChunks.length > 0) {
-      const completeBlob = new Blob(audioChunks, { type: audioChunks[0].type || 'audio/webm' });
-      if (completeBlob.size >= 1000) {
-        await processAudioChunk(completeBlob);
+    // Resample to 16kHz if needed
+    let pcm16;
+    if (nativeSampleRate !== 16000) {
+      const ratio = nativeSampleRate / 16000;
+      const newLength = Math.floor(inputData.length / ratio);
+      pcm16 = new Int16Array(newLength);
+      for (let i = 0; i < newLength; i++) {
+        const srcIdx = Math.floor(i * ratio);
+        const sample = Math.max(-1, Math.min(1, inputData[srcIdx]));
+        pcm16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      }
+    } else {
+      pcm16 = new Int16Array(inputData.length);
+      for (let i = 0; i < inputData.length; i++) {
+        const sample = Math.max(-1, Math.min(1, inputData[i]));
+        pcm16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
       }
     }
-    // Start a new recorder for the next chunk (if still listening)
-    if (isListening) {
-      createAndStartRecorder();
+
+    // Convert to base64
+    const bytes = new Uint8Array(pcm16.buffer);
+    const base64 = arrayBufferToBase64(bytes);
+
+    // Send to proxy
+    try {
+      ws.send(JSON.stringify({ type: 'audio', data: base64 }));
+    } catch(e) {
+      // Connection may have closed between readyState check and send — ignore
     }
   };
 
-  mediaRecorder.start();
+  source.connect(scriptNode);
+  scriptNode.connect(audioContext.destination);  // Required for onaudioprocess to fire
+
+  return true;
 }
 
-// Fix common ASR errors for family names
-function fixFamilyNames(text) {
-  return text
-    .replace(/\bmatches\b/gi,    'Meches')
-    .replace(/\bmechis\b/gi,     'Meches')
-    .replace(/\bmeche\b/gi,      'Meches')
-    .replace(/\bwecho\b/gi,      'Wicho')
-    .replace(/\barchilla\b/gi,   'Archila')
-    .replace(/\bkiko\b/gi,       'Quico')
-    .replace(/\breho\b/gi,       'Rejo')
-    .replace(/\bregina\b/gi,     'Rejo')
-    .replace(/\bla sadie\b/gi,   'La Sadie');
-}
-
-async function processAudioChunk(blob) {
-  if (!isListening) return;
-  if (!blob || blob.size < 1000) return;
-  console.log('Sending chunk:', blob.size, 'bytes', blob.type);
-  setStatus('translating', 'Transcribing…');
-
-  try {
-    const r = await fetch(`${PROXY_URL}/transcribe`, {
-      method: 'POST',
-      headers: { 'Content-Type': blob.type || 'audio/webm' },
-      body: blob
-    });
-
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      console.warn('Transcription failed:', r.status, err);
-      setStatus('listening', 'Listening…');
-      return;
-    }
-
-    const { utterances, language } = await r.json();
-    if (!utterances || utterances.length === 0) {
-      setStatus('listening', 'Listening…');
-      return;
-    }
-
-    for (const utt of utterances) {
-      const speakerIdx = getSpeakerIdx(utt.speaker);
-      const fixed = fixFamilyNames(utt.text);
-      const translated = await translate(fixed, language || 'auto');
-      appendCaption(fixed, translated, language, speakerIdx);
-    }
-
-  } catch(e) {
-    console.warn('Chunk processing error', e);
+function stopAudioCapture() {
+  if (scriptNode) {
+    try { scriptNode.disconnect(); } catch(e) {}
+    scriptNode = null;
   }
-
-  if (isListening) setStatus('listening', 'Listening…');
-}
-
-function stopRecording() {
-  isListening = false;
-  if (chunkInterval) {
-    clearInterval(chunkInterval);
-    chunkInterval = null;
-  }
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+  if (audioContext) {
+    try { audioContext.close(); } catch(e) {}
+    audioContext = null;
   }
   if (audioStream) {
     audioStream.getTracks().forEach(t => t.stop());
+    audioStream = null;
   }
-  mediaRecorder = null;
-  audioStream = null;
-  audioChunks = [];
+}
+
+// Efficient base64 encoding for large arrays
+function arrayBufferToBase64(bytes) {
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    for (let j = 0; j < chunk.length; j++) {
+      binary += String.fromCharCode(chunk[j]);
+    }
+  }
+  return btoa(binary);
+}
+
+// ═══════════════════════════════════════════
+//  WEBSOCKET CONNECTION TO PROXY
+// ═══════════════════════════════════════════
+function connectWebSocket() {
+  return new Promise((resolve, reject) => {
+    const wsUrl = getWsUrl();
+    console.log('Connecting to', wsUrl);
+    setStatus('connecting', 'Connecting…');
+
+    ws = new WebSocket(wsUrl);
+    let resolved = false;
+
+    ws.onopen = () => {
+      console.log('WebSocket connected, sending config');
+      setStatus('connecting', 'Configuring…');
+      wsReconnectAttempts = 0;  // Reset on successful connection
+
+      // Send configuration
+      ws.send(JSON.stringify({
+        type: 'config',
+        target_lang: targetLang,
+        word_boost: wordBoost,
+        replacements: replacements,
+        speaker_count: speakerCount
+      }));
+
+      if (!resolved) { resolved = true; resolve(); }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+
+        switch (msg.type) {
+
+          case 'status':
+            if (msg.status === 'connected' || msg.status === 'session_started') {
+              setStatus('listening', 'Listening…');
+              document.getElementById('listeningText').textContent = 'Listening';
+              hideBanner();
+            } else if (msg.status === 'reconnecting') {
+              setStatus('connecting', 'Reconnecting…');
+              showBanner('Reconnecting — captions resume shortly', 'reconnecting');
+            } else if (msg.status === 'updating_vocab') {
+              setStatus('connecting', 'Updating vocabulary…');
+              showBanner('Applying new words…', 'reconnecting');
+            } else if (msg.status === 'session_ended') {
+              setStatus('', 'Session ended');
+            }
+            break;
+
+          case 'partial':
+            if (msg.text && msg.text.trim()) {
+              setStatus('listening', 'Listening…');
+              const speakerIdx = getSpeakerIdx(msg.speaker);
+              const fixed = fixNames(msg.text);
+
+              // In Abuela Mode, show a simple typing indicator instead of raw partial
+              if (abuelaModeOn) {
+                document.getElementById('listeningText').textContent = 'Someone is speaking';
+              } else {
+                updatePartialCaption(fixed, speakerIdx);
+              }
+            }
+            break;
+
+          case 'final':
+            if (msg.text && msg.text.trim()) {
+              const speakerIdx = getSpeakerIdx(msg.speaker);
+              const original   = fixNames(msg.original || msg.text);
+              const translated = fixNames(msg.text);
+              appendFinalCaption(original, translated, msg.lang, speakerIdx);
+
+              if (abuelaModeOn) {
+                document.getElementById('listeningText').textContent = 'Listening';
+              }
+            }
+            break;
+
+          case 'error':
+            console.error('Server error:', msg.message);
+            showBanner(msg.message || 'Connection error', 'error');
+            setStatus('error', 'Error');
+            break;
+        }
+      } catch(e) {
+        console.error('WS message parse error:', e);
+      }
+    };
+
+    ws.onclose = (event) => {
+      console.log('WebSocket closed:', event.code, event.reason);
+      if (!resolved) { resolved = true; reject(new Error('WebSocket closed before open')); }
+
+      if (isListening) {
+        wsReconnectAttempts++;
+        if (wsReconnectAttempts <= WS_MAX_RECONNECTS) {
+          const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts - 1), 10000);
+          setStatus('connecting', `Reconnecting (${wsReconnectAttempts}/${WS_MAX_RECONNECTS})…`);
+          showBanner('Connection lost — reconnecting…', 'reconnecting');
+          setTimeout(() => {
+            if (isListening) connectWebSocket().catch(() => {});
+          }, delay);
+        } else {
+          setStatus('error', 'Connection failed');
+          showBanner('Could not reconnect. Tap Stop and try again.', 'error');
+        }
+      }
+    };
+
+    ws.onerror = (event) => {
+      console.error('WebSocket error:', event);
+      setStatus('error', 'Connection error');
+    };
+  });
+}
+
+function disconnectWebSocket() {
+  if (ws) {
+    try {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'terminate' }));
+      }
+      ws.close();
+    } catch(e) {}
+    ws = null;
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -890,16 +1209,17 @@ function toggleAbuelaMode() {
   document.body.classList.toggle('abuela-mode', abuelaModeOn);
   const btn = document.getElementById('abuelaModeBtn');
   btn.classList.toggle('active', abuelaModeOn);
-  btn.textContent = abuelaModeOn ? '👵 Exit' : '👵 Focus';
+  btn.textContent = abuelaModeOn ? 'Exit' : 'Focus';
 
   if (abuelaModeOn) {
-    if (fontSize < 44) {
-      fontSize = 48;
-      applyFontSize();
+    // Remove partial block (cleaner for grandma)
+    if (currentPartialBlock) {
+      currentPartialBlock.remove();
+      currentPartialBlock = null;
     }
-    try { document.documentElement.requestFullscreen(); } catch(e){}
+    try { document.documentElement.requestFullscreen(); } catch(e) {}
   } else {
-    try { document.exitFullscreen(); } catch(e){}
+    try { document.exitFullscreen(); } catch(e) {}
   }
 }
 
@@ -907,41 +1227,125 @@ function toggleAbuelaMode() {
 //  SESSION CONTROL
 // ═══════════════════════════════════════════
 async function startSession() {
+  const startBtn = document.getElementById('startBtn');
+  startBtn.disabled = true;
+  startBtn.textContent = 'Starting…';
+
   targetLang  = document.getElementById('targetLang').value;
   micDeviceId = document.getElementById('micSelect').value;
 
+  // Parse family words
+  const wordsText = document.getElementById('familyWordsInput').value;
+  const parsed = parseFamilyWords(wordsText);
+  wordBoost    = parsed.boost;
+  replacements = parsed.reps;
+
+  // Switch to caption screen
   document.getElementById('setup').style.display = 'none';
   document.getElementById('captionScreen').style.display = 'flex';
-  document.getElementById('langBadge').textContent = '→ ' + (langNames[targetLang] || targetLang);
+  document.getElementById('langBadge').textContent = langNames[targetLang] || targetLang;
 
+  // Populate runtime mic selector
   const micSrc = document.getElementById('micSelect');
   const micDst = document.getElementById('micSelectRuntime');
   micDst.innerHTML = micSrc.innerHTML;
   micDst.value = micSrc.value;
 
-  document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+  // Pre-fill settings panel with current words
+  document.getElementById('settingsWordsInput').value = wordsText;
+
+  applyFontSize();
   buildLegend();
-  await startRecording();
+  isListening = true;
+  wsReconnectAttempts = 0;
+
+  // Connect WebSocket first, then start audio
+  try {
+    await connectWebSocket();
+  } catch(e) {
+    console.error('WebSocket connection failed:', e);
+    showBanner('Could not connect to server. Check your internet.', 'error');
+    setStatus('error', 'Connection failed');
+    // Still try — audio will buffer and WS reconnect logic will kick in
+  }
+
+  const audioOk = await startAudioCapture();
+  if (!audioOk) {
+    stopSession();
+    return;
+  }
+
+  startBtn.disabled = false;
+  startBtn.textContent = 'Start Listening';
 }
 
 function stopSession() {
-  stopRecording();
+  isListening = false;
+
+  // Cleanup
+  stopAudioCapture();
+  disconnectWebSocket();
+
+  // Exit abuela mode
   abuelaModeOn = false;
   document.body.classList.remove('abuela-mode');
-  try { document.exitFullscreen(); } catch(e){}
+  try { document.exitFullscreen(); } catch(e) {}
 
+  // Switch back to setup
   document.getElementById('captionScreen').style.display = 'none';
   document.getElementById('setup').style.display = 'flex';
   clearCaptions();
   setStatus('', '');
+  hideBanner();
+
+  const startBtn = document.getElementById('startBtn');
+  startBtn.disabled = false;
+  startBtn.textContent = 'Start Listening';
 }
 
-function switchMic(deviceId) {
+async function switchMic(deviceId) {
   micDeviceId = deviceId;
   if (isListening) {
-    stopRecording();
-    startRecording();
+    stopAudioCapture();
+    const ok = await startAudioCapture();
+    if (!ok) {
+      showBanner('Could not switch microphone. Try another.', 'error');
+    }
   }
+}
+
+// ═══════════════════════════════════════════
+//  SETTINGS PANEL
+// ═══════════════════════════════════════════
+function openSettings() {
+  document.getElementById('settingsPanel').classList.add('open');
+  document.getElementById('settingsOverlay').classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settingsPanel').classList.remove('open');
+  document.getElementById('settingsOverlay').classList.remove('show');
+}
+
+function saveSettings() {
+  const wordsText = document.getElementById('settingsWordsInput').value;
+  const parsed = parseFamilyWords(wordsText);
+  wordBoost    = parsed.boost;
+  replacements = parsed.reps;
+
+  // Also update the setup screen textarea
+  document.getElementById('familyWordsInput').value = wordsText;
+
+  // Send updated vocabulary to proxy (triggers AAI reconnection)
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'update_vocab',
+      word_boost: wordBoost,
+      replacements: replacements
+    }));
+  }
+
+  closeSettings();
 }
 
 // ═══════════════════════════════════════════
@@ -950,6 +1354,16 @@ function switchMic(deviceId) {
 function setStatus(type, text) {
   document.getElementById('statusDot').className = 'status-dot' + (type ? ` ${type}` : '');
   document.getElementById('statusText').textContent = text;
+}
+
+function showBanner(text, type) {
+  const banner = document.getElementById('connectionBanner');
+  banner.textContent = text;
+  banner.className = 'connection-banner show ' + (type || '');
+}
+
+function hideBanner() {
+  document.getElementById('connectionBanner').className = 'connection-banner';
 }
 
 function increaseFont() {
@@ -965,16 +1379,30 @@ function decreaseFont() {
 function applyFontSize() {
   document.documentElement.style.setProperty('--font-size', fontSize + 'px');
   document.getElementById('fontSizeLabel').textContent = fontSize;
-  document.querySelectorAll('.caption-translated').forEach(el => el.style.fontSize = fontSize + 'px');
+  document.querySelectorAll('.caption-translated').forEach(el => {
+    if (!document.body.classList.contains('abuela-mode')) {
+      el.style.fontSize = fontSize + 'px';
+    }
+  });
 }
 
 // ═══════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════
 window.addEventListener('load', () => {
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+  // Check HTTPS
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
     document.getElementById('httpsNotice').classList.add('show');
   }
+
+  // Load default family words
+  const defaultWords = [
+    'Meches','Cecca','Neshito','Kayak','Wicho','Peta',
+    'Archila','Cucho','Quico','Ash','La Sadie','Rejo',
+    'mija','mijo','ahorita','abuela','tamales','empanadas'
+  ];
+  document.getElementById('familyWordsInput').value = defaultWords.join('\n');
+
   loadMics();
   setSpeakerCount(3);
 });

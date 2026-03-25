@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Mesa — Live Captions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Source+Sans+3:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --text: #f5f0eb;
+    --text-dim: #888;
+    --accent: #e8845a;
+    --accent2: #7eb8c9;
+    --green: #6dbf9e;
+    --font-size: 28px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Sans 3', sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* ── SETUP SCREEN ── */
+  #setup {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 40px 24px;
+  }
+
+  .app-title {
+    font-family: 'Lora', serif;
+    font-size: 52px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -1px;
+  }
+  .app-subtitle {
+    font-size: 20px;
+    color: var(--text-dim);
+    text-align: center;
+    max-width: 420px;
+    line-height: 1.5;
+  }
+
+  .setup-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .field-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  select {
+    width: 100%;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-size: 20px;
+    font-family: 'Source Sans 3', sans-serif;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    cursor: pointer;
+  }
+  select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+  .start-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    padding: 22px;
+    font-size: 24px;
+    font-family: 'Lora', serif;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .start-btn:active { opacity: 0.85; transform: scale(0.99); }
+
+  /* ── CAPTION SCREEN ── */
+  #captionScreen {
+    display: none;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 8px 16px;
+    font-size: 15px;
+    color: var(--text-dim);
+  }
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.3s;
+  }
+  .status-dot.listening { background: var(--green); animation: pulse 1.5s infinite; }
+  .status-dot.translating { background: var(--accent2); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ctrl-btn {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+    min-width: 44px;
+    text-align: center;
+  }
+  .ctrl-btn:active { background: var(--border); }
+  .ctrl-btn.stop { color: var(--accent); border-color: var(--accent); }
+
+  .font-size-display {
+    font-size: 14px;
+    color: var(--text-dim);
+    min-width: 36px;
+    text-align: center;
+  }
+
+  .mic-select-mini {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-family: 'Source Sans 3', sans-serif;
+    appearance: none;
+    cursor: pointer;
+    max-width: 180px;
+  }
+
+  /* ── CAPTION AREA ── */
+  #captions {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px 40px;
+    scroll-behavior: smooth;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  #captions::-webkit-scrollbar { width: 4px; }
+  #captions::-webkit-scrollbar-track { background: transparent; }
+  #captions::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .caption-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: fadeUp 0.3s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .caption-meta {
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .caption-lang-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  .caption-original {
+    color: var(--text-dim);
+    font-size: 15px;
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  .caption-translated {
+    color: var(--text);
+    font-family: 'Lora', serif;
+    font-size: var(--font-size);
+    line-height: 1.55;
+    font-weight: 400;
+  }
+
+  .caption-translated.interim {
+    color: #aaa;
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+  }
+
+  /* Listening indicator */
+  #listeningIndicator {
+    padding: 24px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .dots span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    margin: 0 2px;
+    animation: dotBounce 1.4s infinite;
+  }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotBounce {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1); }
+  }
+
+  /* ── LANG DISPLAY BADGE ── */
+  .lang-badge {
+    font-size: 14px;
+    color: var(--accent2);
+    font-weight: 600;
+  }
+
+  /* ── CLEAR BTN ── */
+  #clearBtn { color: var(--text-dim); }
+
+  /* ── PERMISSIONS NOTICE ── */
+  .notice {
+    background: #1a1200;
+    border: 1px solid #3d2e00;
+    color: #c8a040;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 15px;
+    line-height: 1.5;
+    display: none;
+  }
+  .notice.show { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ════════════ SETUP SCREEN ════════════ -->
+<div id="setup">
+  <div style="text-align:center">
+    <div class="app-title">Mesa</div>
+    <div class="app-subtitle">Live captions for your dinner table — translated in real time</div>
+  </div>
+
+  <div class="setup-card">
+
+    <div>
+      <div class="field-label">Show captions in</div>
+      <select id="targetLang">
+        <option value="es">🇪🇸 Spanish</option>
+        <option value="en">🇺🇸 English</option>
+        <option value="fr">🇫🇷 French</option>
+        <option value="pt">🇧🇷 Portuguese</option>
+        <option value="it">🇮🇹 Italian</option>
+        <option value="de">🇩🇪 German</option>
+        <option value="zh">🇨🇳 Chinese (Simplified)</option>
+        <option value="ja">🇯🇵 Japanese</option>
+        <option value="ko">🇰🇷 Korean</option>
+        <option value="ar">🇸🇦 Arabic</option>
+        <option value="ru">🇷🇺 Russian</option>
+        <option value="hi">🇮🇳 Hindi</option>
+        <option value="pl">🇵🇱 Polish</option>
+        <option value="nl">🇳🇱 Dutch</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="field-label">Microphone</div>
+      <select id="micSelect">
+        <option value="">Default microphone</option>
+      </select>
+      <div style="font-size:13px;color:var(--text-dim);margin-top:6px;">
+        Bluetooth mics will appear here when paired to this iPad.
+      </div>
+    </div>
+
+    <div class="notice" id="httpsNotice">
+      ⚠️ For mic access on iPad, open this file via <strong>https://</strong> or run a local server. Chrome on iPad requires a secure context for microphone.
+    </div>
+
+    <button class="start-btn" onclick="startSession()">Start Listening</button>
+  </div>
+</div>
+
+<!-- ════════════ CAPTION SCREEN ════════════ -->
+<div id="captionScreen">
+
+  <div class="top-bar">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="status-pill">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Starting…</span>
+      </div>
+      <span class="lang-badge" id="langBadge"></span>
+    </div>
+
+    <div class="controls">
+      <select class="mic-select-mini" id="micSelectRuntime" onchange="switchMic(this.value)"></select>
+      <button class="ctrl-btn" onclick="decreaseFont()" title="Smaller text">A−</button>
+      <span class="font-size-display" id="fontSizeLabel">28</span>
+      <button class="ctrl-btn" onclick="increaseFont()" title="Larger text">A+</button>
+      <button class="ctrl-btn" id="clearBtn" onclick="clearCaptions()" title="Clear screen">⌫</button>
+      <button class="ctrl-btn stop" onclick="stopSession()">Stop</button>
+    </div>
+  </div>
+
+  <div id="captions">
+    <div id="listeningIndicator">
+      <span>Listening</span>
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  CONFIG — swap API here
+// ═══════════════════════════════════════════
+const TRANSLATION_API = 'google'; // options: 'mymemory' | 'google' | 'deepl' | 'libretranslate'
+const GOOGLE_API_KEY  = 'AIzaSyA17FWztL2HM4mKpDRRIFBuNV7m44W5gLo'; // ← paste your key here
+const DEEPL_API_KEY   = 'YOUR_DEEPL_API_KEY_HERE';
+const LIBRE_API_URL   = 'https://libretranslate.com'; // or your self-hosted URL
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let recognition = null;
+let targetLang = 'es';
+let fontSize = 28;
+let silenceTimer = null;
+let isListening = false;
+let micDeviceId = '';
+let captionCount = 0;
+let currentInterimBlock = null;
+const SILENCE_MS = 4000;
+
+const langNames = {
+  es:'Spanish', en:'English', fr:'French', pt:'Portuguese',
+  it:'Italian', de:'German', zh:'Chinese', ja:'Japanese',
+  ko:'Korean', ar:'Arabic', ru:'Russian', hi:'Hindi',
+  pl:'Polish', nl:'Dutch'
+};
+
+// ═══════════════════════════════════════════
+//  MIC ENUMERATION
+// ═══════════════════════════════════════════
+async function loadMics() {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const mics = devices.filter(d => d.kind === 'audioinput');
+    ['micSelect','micSelectRuntime'].forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      sel.innerHTML = '';
+      mics.forEach((m, i) => {
+        const opt = document.createElement('option');
+        opt.value = m.deviceId;
+        opt.text = m.label || `Microphone ${i+1}`;
+        sel.appendChild(opt);
+      });
+    });
+  } catch(e) {
+    console.warn('Mic enum failed', e);
+    document.getElementById('httpsNotice').classList.add('show');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  TRANSLATION
+// ═══════════════════════════════════════════
+const translateCache = new Map();
+
+async function translate(text, sourceLang) {
+  if (!text.trim()) return text;
+  const cacheKey = `${sourceLang}|${targetLang}|${text}`;
+  if (translateCache.has(cacheKey)) return translateCache.get(cacheKey);
+
+  // No translation needed if same language
+  if (sourceLang && sourceLang.startsWith(targetLang)) return text;
+
+  try {
+    let result = text;
+
+    if (TRANSLATION_API === 'mymemory') {
+      const src = sourceLang || 'autodetect';
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${src}|${targetLang}`;
+      const r = await fetch(url);
+      const j = await r.json();
+      result = j.responseData?.translatedText || text;
+    }
+
+    else if (TRANSLATION_API === 'google') {
+      const url = `https://translation.googleapis.com/language/translate/v2?key=${GOOGLE_API_KEY}`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: text, target: targetLang, format: 'text' })
+      });
+      const j = await r.json();
+      result = j.data?.translations?.[0]?.translatedText || text;
+    }
+
+    else if (TRANSLATION_API === 'deepl') {
+      const r = await fetch('https://api-free.deepl.com/v2/translate', {
+        method: 'POST',
+        headers: {
+          'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({ text, target_lang: targetLang.toUpperCase() })
+      });
+      const j = await r.json();
+      result = j.translations?.[0]?.text || text;
+    }
+
+    else if (TRANSLATION_API === 'libretranslate') {
+      const r = await fetch(`${LIBRE_API_URL}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: text, source: sourceLang || 'auto', target: targetLang, format: 'text' })
+      });
+      const j = await r.json();
+      result = j.translatedText || text;
+    }
+
+    translateCache.set(cacheKey, result);
+    return result;
+  } catch(e) {
+    console.warn('Translation error', e);
+    return text;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  CAPTION RENDERING
+// ═══════════════════════════════════════════
+function createCaptionBlock(original, translated, detectedLang, isInterim) {
+  const block = document.createElement('div');
+  block.className = 'caption-block';
+  block.dataset.id = ++captionCount;
+
+  const meta = document.createElement('div');
+  meta.className = 'caption-meta';
+
+  const now = new Date();
+  const time = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  meta.innerHTML = `<span>${time}</span>
+    ${detectedLang ? `<span class="caption-lang-badge">${detectedLang.toUpperCase()}</span>` : ''}`;
+  block.appendChild(meta);
+
+  if (original && original !== translated) {
+    const orig = document.createElement('div');
+    orig.className = 'caption-original';
+    orig.textContent = original;
+    block.appendChild(orig);
+  }
+
+  const cap = document.createElement('div');
+  cap.className = 'caption-translated' + (isInterim ? ' interim' : '');
+  cap.style.fontSize = fontSize + 'px';
+  cap.textContent = translated;
+  block.appendChild(cap);
+
+  return block;
+}
+
+function appendCaption(original, translated, detectedLang, isInterim) {
+  const captions = document.getElementById('captions');
+  const indicator = document.getElementById('listeningIndicator');
+
+  if (isInterim) {
+    if (currentInterimBlock) {
+      currentInterimBlock.querySelector('.caption-translated').textContent = translated;
+      if (original && original !== translated) {
+        const origEl = currentInterimBlock.querySelector('.caption-original');
+        if (origEl) origEl.textContent = original;
+      }
+    } else {
+      currentInterimBlock = createCaptionBlock(original, translated, detectedLang, true);
+      captions.insertBefore(currentInterimBlock, indicator);
+    }
+  } else {
+    if (currentInterimBlock) {
+      currentInterimBlock.remove();
+      currentInterimBlock = null;
+    }
+    const block = createCaptionBlock(original, translated, detectedLang, false);
+    captions.insertBefore(block, indicator);
+  }
+
+  indicator.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function clearCaptions() {
+  const captions = document.getElementById('captions');
+  const indicator = document.getElementById('listeningIndicator');
+  // Remove all except indicator
+  [...captions.children].forEach(c => { if (c !== indicator) c.remove(); });
+  currentInterimBlock = null;
+}
+
+// ═══════════════════════════════════════════
+//  SPEECH RECOGNITION
+// ═══════════════════════════════════════════
+function buildRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('Speech recognition not supported in this browser. Please use Chrome on iPad.');
+    return null;
+  }
+
+  const r = new SpeechRecognition();
+  r.continuous = true;
+  r.interimResults = true;
+  r.lang = ''; // Empty = auto-detect language (best for multilingual rooms)
+  r.maxAlternatives = 1;
+
+  r.onstart = () => {
+    isListening = true;
+    setStatus('listening', 'Listening…');
+    resetSilenceTimer();
+  };
+
+  r.onend = () => {
+    // Auto-restart unless stopped manually
+    if (isListening) {
+      setTimeout(() => { try { r.start(); } catch(e){} }, 300);
+    }
+  };
+
+  r.onerror = (e) => {
+    if (e.error === 'no-speech') return; // ignore, restart will happen
+    if (e.error === 'not-allowed') {
+      setStatus('', 'Mic access denied — check browser settings');
+      stopSession();
+      return;
+    }
+    console.warn('SpeechRecognition error', e.error);
+  };
+
+  r.onresult = async (e) => {
+    resetSilenceTimer();
+    setStatus('listening', 'Listening…');
+
+    let interim = '';
+    let final = '';
+
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      if (res.isFinal) {
+        final += res[0].transcript;
+      } else {
+        interim += res[0].transcript;
+      }
+    }
+
+    // Detect spoken language from recognition (Chrome exposes it when lang='')
+    // We use a simple heuristic fallback since Web Speech API doesn't expose it directly
+    const detectedLang = detectLangFromTranscript(final || interim);
+
+    if (interim) {
+      setStatus('translating', 'Translating…');
+      const translated = await translate(interim, detectedLang);
+      appendCaption(interim, translated, detectedLang, true);
+      setStatus('listening', 'Listening…');
+    }
+
+    if (final) {
+      setStatus('translating', 'Translating…');
+      const translated = await translate(final.trim(), detectedLang);
+      appendCaption(final.trim(), translated, detectedLang, false);
+      setStatus('listening', 'Listening…');
+    }
+  };
+
+  return r;
+}
+
+// Lightweight language guesser (heuristic based on character sets)
+function detectLangFromTranscript(text) {
+  if (!text) return null;
+  if (/[\u4e00-\u9fff]/.test(text)) return 'zh';
+  if (/[\u3040-\u30ff]/.test(text)) return 'ja';
+  if (/[\uac00-\ud7af]/.test(text)) return 'ko';
+  if (/[\u0600-\u06ff]/.test(text)) return 'ar';
+  if (/[\u0400-\u04ff]/.test(text)) return 'ru';
+  if (/[\u0900-\u097f]/.test(text)) return 'hi';
+  // For Latin scripts — let MyMemory/Google auto-detect
+  return 'auto';
+}
+
+// ═══════════════════════════════════════════
+//  SILENCE TIMER
+// ═══════════════════════════════════════════
+function resetSilenceTimer() {
+  clearTimeout(silenceTimer);
+  silenceTimer = setTimeout(() => {
+    if (isListening) setStatus('', 'Listening quietly…');
+  }, SILENCE_MS);
+}
+
+// ═══════════════════════════════════════════
+//  SESSION CONTROL
+// ═══════════════════════════════════════════
+async function startSession() {
+  targetLang = document.getElementById('targetLang').value;
+  micDeviceId = document.getElementById('micSelect').value;
+
+  document.getElementById('setup').style.display = 'none';
+  const captionScreen = document.getElementById('captionScreen');
+  captionScreen.style.display = 'flex';
+
+  document.getElementById('langBadge').textContent = '→ ' + (langNames[targetLang] || targetLang);
+
+  // Populate runtime mic selector
+  const micSrc = document.getElementById('micSelect');
+  const micDst = document.getElementById('micSelectRuntime');
+  micDst.innerHTML = micSrc.innerHTML;
+  micDst.value = micSrc.value;
+
+  // Apply font size
+  document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+
+  recognition = buildRecognition();
+  if (recognition) {
+    try {
+      recognition.start();
+    } catch(e) {
+      setStatus('', 'Could not start — check mic permissions');
+    }
+  }
+}
+
+function stopSession() {
+  isListening = false;
+  clearTimeout(silenceTimer);
+  if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
+
+  document.getElementById('captionScreen').style.display = 'none';
+  document.getElementById('setup').style.display = 'flex';
+  clearCaptions();
+}
+
+function switchMic(deviceId) {
+  micDeviceId = deviceId;
+  // Restart recognition to pick up new device
+  if (recognition && isListening) {
+    try { recognition.stop(); } catch(e){}
+    // onend will restart automatically
+  }
+}
+
+// ═══════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════
+function setStatus(type, text) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusText');
+  dot.className = 'status-dot' + (type ? ` ${type}` : '');
+  label.textContent = text;
+}
+
+function increaseFont() {
+  fontSize = Math.min(fontSize + 4, 72);
+  document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+  document.getElementById('fontSizeLabel').textContent = fontSize;
+  document.querySelectorAll('.caption-translated').forEach(el => el.style.fontSize = fontSize + 'px');
+}
+
+function decreaseFont() {
+  fontSize = Math.max(fontSize - 4, 16);
+  document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+  document.getElementById('fontSizeLabel').textContent = fontSize;
+  document.querySelectorAll('.caption-translated').forEach(el => el.style.fontSize = fontSize + 'px');
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+window.addEventListener('load', () => {
+  // Check if on HTTPS (required for mic on iPad)
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    document.getElementById('httpsNotice').classList.add('show');
+  }
+  loadMics();
+});
+</script>
+</body>
+</html>
