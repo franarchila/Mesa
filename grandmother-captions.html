@@ -326,6 +326,26 @@
   <div class="setup-card">
 
     <div>
+      <div class="field-label">Spoken language</div>
+      <select id="sourceLang">
+        <option value="es">🇪🇸 Spanish</option>
+        <option value="en">🇺🇸 English</option>
+        <option value="fr">🇫🇷 French</option>
+        <option value="pt">🇧🇷 Portuguese</option>
+        <option value="it">🇮🇹 Italian</option>
+        <option value="de">🇩🇪 German</option>
+        <option value="zh">🇨🇳 Chinese (Simplified)</option>
+        <option value="ja">🇯🇵 Japanese</option>
+        <option value="ko">🇰🇷 Korean</option>
+        <option value="ar">🇸🇦 Arabic</option>
+        <option value="ru">🇷🇺 Russian</option>
+        <option value="hi">🇮🇳 Hindi</option>
+        <option value="pl">🇵🇱 Polish</option>
+        <option value="nl">🇳🇱 Dutch</option>
+      </select>
+    </div>
+
+    <div>
       <div class="field-label">Show captions in</div>
       <select id="targetLang">
         <option value="es">🇪🇸 Spanish</option>
@@ -407,6 +427,7 @@ const LIBRE_API_URL   = 'https://libretranslate.com'; // or your self-hosted URL
 //  STATE
 // ═══════════════════════════════════════════
 let recognition = null;
+let sourceLang = 'es';
 let targetLang = 'es';
 let fontSize = 28;
 let silenceTimer = null;
@@ -595,7 +616,7 @@ function buildRecognition() {
   const r = new SpeechRecognition();
   r.continuous = true;
   r.interimResults = true;
-  r.lang = ''; // Empty = auto-detect language (best for multilingual rooms)
+  r.lang = sourceLang; // Use selected source language for accurate transcription
   r.maxAlternatives = 1;
 
   r.onstart = () => {
@@ -637,21 +658,17 @@ function buildRecognition() {
       }
     }
 
-    // Detect spoken language from recognition (Chrome exposes it when lang='')
-    // We use a simple heuristic fallback since Web Speech API doesn't expose it directly
-    const detectedLang = detectLangFromTranscript(final || interim);
-
     if (interim) {
       setStatus('translating', 'Translating…');
-      const translated = await translate(interim, detectedLang);
-      appendCaption(interim, translated, detectedLang, true);
+      const translated = await translate(interim, sourceLang);
+      appendCaption(interim, translated, sourceLang, true);
       setStatus('listening', 'Listening…');
     }
 
     if (final) {
       setStatus('translating', 'Translating…');
-      const translated = await translate(final.trim(), detectedLang);
-      appendCaption(final.trim(), translated, detectedLang, false);
+      const translated = await translate(final.trim(), sourceLang);
+      appendCaption(final.trim(), translated, sourceLang, false);
       setStatus('listening', 'Listening…');
     }
   };
@@ -686,6 +703,7 @@ function resetSilenceTimer() {
 //  SESSION CONTROL
 // ═══════════════════════════════════════════
 async function startSession() {
+  sourceLang = document.getElementById('sourceLang').value;
   targetLang = document.getElementById('targetLang').value;
   micDeviceId = document.getElementById('micSelect').value;
 
@@ -693,7 +711,7 @@ async function startSession() {
   const captionScreen = document.getElementById('captionScreen');
   captionScreen.style.display = 'flex';
 
-  document.getElementById('langBadge').textContent = '→ ' + (langNames[targetLang] || targetLang);
+  document.getElementById('langBadge').textContent = (langNames[sourceLang] || sourceLang) + ' → ' + (langNames[targetLang] || targetLang);
 
   // Populate runtime mic selector
   const micSrc = document.getElementById('micSelect');
