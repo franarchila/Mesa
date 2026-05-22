@@ -418,7 +418,7 @@
 // ═══════════════════════════════════════════
 //  CONFIG
 // ═══════════════════════════════════════════
-const PROXY_URL = 'https://mesa-proxy-production.up.railway.app';
+const PROXY_URL = '';
 const FALLBACK_TRANSLATION_URL = 'https://api.mymemory.translated.net/get';
 
 // ═══════════════════════════════════════════
@@ -482,7 +482,7 @@ async function translate(text, sourceLang) {
 
   try {
     let result = text;
-    try {
+    if (PROXY_URL) {
       const r = await fetch(`${PROXY_URL}/translate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -491,7 +491,7 @@ async function translate(text, sourceLang) {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Translation failed');
       result = j.translated || text;
-    } catch (proxyError) {
+    } else {
       const src = sourceLang || 'autodetect';
       const url = `${FALLBACK_TRANSLATION_URL}?q=${encodeURIComponent(text)}&langpair=${src}|${targetLang}`;
       const r = await fetch(url);
