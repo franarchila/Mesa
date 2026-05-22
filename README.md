@@ -82,7 +82,7 @@ The API key is never stored in the frontend code — it lives only as an environ
 
 ### Step 3 — Deploy the frontend
 1. Fork this repo
-2. Open `index.html` and update line 3:
+2. Open `index.html` and update the `PROXY_URL` value near the top of the script:
    ```javascript
    const PROXY_URL = 'https://your-proxy-url.up.railway.app';
    ```

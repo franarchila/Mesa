@@ -416,12 +416,10 @@
 
 <script>
 // ═══════════════════════════════════════════
-//  CONFIG — swap API here
+//  CONFIG
 // ═══════════════════════════════════════════
-const TRANSLATION_API = 'google'; // options: 'mymemory' | 'google' | 'deepl' | 'libretranslate'
-const GOOGLE_API_KEY  = 'AIzaSyA17FWztL2HM4mKpDRRIFBuNV7m44W5gLo'; // ← paste your key here
-const DEEPL_API_KEY   = 'YOUR_DEEPL_API_KEY_HERE';
-const LIBRE_API_URL   = 'https://libretranslate.com'; // or your self-hosted URL
+const PROXY_URL = 'https://mesa-proxy-production.up.railway.app';
+const FALLBACK_TRANSLATION_URL = 'https://api.mymemory.translated.net/get';
 
 // ═══════════════════════════════════════════
 //  STATE
@@ -484,47 +482,21 @@ async function translate(text, sourceLang) {
 
   try {
     let result = text;
-
-    if (TRANSLATION_API === 'mymemory') {
+    try {
+      const r = await fetch(`${PROXY_URL}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, target: targetLang })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Translation failed');
+      result = j.translated || text;
+    } catch (proxyError) {
       const src = sourceLang || 'autodetect';
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${src}|${targetLang}`;
+      const url = `${FALLBACK_TRANSLATION_URL}?q=${encodeURIComponent(text)}&langpair=${src}|${targetLang}`;
       const r = await fetch(url);
       const j = await r.json();
       result = j.responseData?.translatedText || text;
-    }
-
-    else if (TRANSLATION_API === 'google') {
-      const url = `https://translation.googleapis.com/language/translate/v2?key=${GOOGLE_API_KEY}`;
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: text, target: targetLang, format: 'text' })
-      });
-      const j = await r.json();
-      result = j.data?.translations?.[0]?.translatedText || text;
-    }
-
-    else if (TRANSLATION_API === 'deepl') {
-      const r = await fetch('https://api-free.deepl.com/v2/translate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({ text, target_lang: targetLang.toUpperCase() })
-      });
-      const j = await r.json();
-      result = j.translations?.[0]?.text || text;
-    }
-
-    else if (TRANSLATION_API === 'libretranslate') {
-      const r = await fetch(`${LIBRE_API_URL}/translate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: text, source: sourceLang || 'auto', target: targetLang, format: 'text' })
-      });
-      const j = await r.json();
-      result = j.translatedText || text;
     }
 
     translateCache.set(cacheKey, result);
